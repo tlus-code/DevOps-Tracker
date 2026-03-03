@@ -20,24 +20,29 @@
     .btn { transition: opacity 0.15s, transform 0.1s; }
     .btn:hover { opacity: 0.85; }
     .btn:active { transform: scale(0.97); }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
-    .fade-in { animation: fadeIn 0.2s ease; }
+    .chk-row { display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:6px; cursor:pointer; transition:background 0.12s; }
+    .chk-row:hover { background:#161b22; }
+    .sql-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:11px; font-family:monospace; font-weight:700; cursor:pointer; border:1px solid; transition:all 0.15s; user-select:none; }
+    @keyframes spin    { to { transform: rotate(360deg); } }
+    @keyframes fadeIn  { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+    @keyframes scaleIn { from { opacity:0; transform:scale(0.93); } to { opacity:1; transform:scale(1); } }
+    .fade-in  { animation: fadeIn  0.2s ease; }
+    .scale-in { animation: scaleIn 0.18s ease; }
   </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-  const { useState, useEffect, useCallback } = React;
+  const { useState, useEffect, useCallback, useRef } = React;
 
-  /* ─── Constants ─────────────────────────────────────────── */
+  /* ── Constants ───────────────────────────────────────────────── */
   const ENVS = ["DEV","QA","DEV2","QA2","PROD"];
   const ENV_META = {
-    DEV:  { label:"DEV",  sub:"Feature Branch",    color:"#3B82F6", bg:"#1e3a5f" },
-    QA:   { label:"QA",   sub:"Feature Testing",   color:"#8B5CF6", bg:"#2d1f5e" },
-    DEV2: { label:"DEV2", sub:"Prod Base",          color:"#F59E0B", bg:"#3d2f0f" },
-    QA2:  { label:"QA2",  sub:"Hotfix Validation",  color:"#F97316", bg:"#3d1f0f" },
-    PROD: { label:"PROD", sub:"Production",         color:"#10B981", bg:"#0f3d2a" },
+    DEV:  { label:"DEV",  sub:"Feature Branch",   color:"#3B82F6", bg:"#1e3a5f" },
+    QA:   { label:"QA",   sub:"Feature Testing",  color:"#8B5CF6", bg:"#2d1f5e" },
+    DEV2: { label:"DEV2", sub:"Prod Base",         color:"#F59E0B", bg:"#3d2f0f" },
+    QA2:  { label:"QA2",  sub:"Hotfix Validation", color:"#F97316", bg:"#3d1f0f" },
+    PROD: { label:"PROD", sub:"Production",        color:"#10B981", bg:"#0f3d2a" },
   };
   const STATUS_OPTIONS = ["Not Started","In Progress","Done","Blocked","Skipped"];
   const STATUS_COLORS  = {
@@ -53,17 +58,41 @@
     feature: ["DEV","QA","PROD"],
     hotfix:  ["DEV2","QA2","PROD","DEV","QA"],
   };
+
+  const SQL_TYPES = [
+    { key:"insert",            label:"INSERT",             color:"#10B981" },
+    { key:"update",            label:"UPDATE",             color:"#3B82F6" },
+    { key:"delete",            label:"DELETE",             color:"#EF4444" },
+    { key:"modify",            label:"MODIFY",             color:"#F59E0B" },
+    { key:"view",              label:"VIEW",               color:"#8B5CF6" },
+    { key:"materializedView",  label:"MATERIALIZED VIEW",  color:"#F97316" },
+  ];
+
   const SCRIPT_URL_KEY = "env-tracker-script-url";
+
+  const EMPTY_CHANGES = () => ({
+    hasConfig:     false, configDetails: "",
+    hasCodeChange: false, codeDetails:   "",
+    hasSql:        false, sqlTypes:      [], sqlDetails: "",
+  });
   const EMPTY_STATUSES = () => ({ DEV:"Not Started", QA:"Not Started", DEV2:"Not Started", QA2:"Not Started", PROD:"Not Started" });
   const EMPTY_ITEM = () => ({
-    id: Date.now().toString(36)+Math.random().toString(36).slice(2),
+    id:         Date.now().toString(36)+Math.random().toString(36).slice(2),
+    dropNumber: autoDropNumber(),
     ticket:"", title:"", type:"Feature", owner:"", priority:"Medium",
-    notes:"", createdAt: new Date().toISOString().slice(0,10),
-    statuses: EMPTY_STATUSES(),
+    notes:"",  changes: EMPTY_CHANGES(),
+    createdAt:  new Date().toISOString().slice(0,10),
+    statuses:   EMPTY_STATUSES(),
   });
+
+  function autoDropNumber() {
+    const y = new Date().getFullYear();
+    return `D1-${y}`;
+  }
+
   const getTrack = (item) => (item.type==="Hotfix"||item.type==="Config") ? "hotfix" : "feature";
 
-  /* ─── Shared styles ──────────────────────────────────────── */
+  /* ── Styles ──────────────────────────────────────────────────── */
   const inp = {
     background:"#161b22", border:"1px solid #30363d", borderRadius:6,
     color:"#e6edf3", padding:"8px 10px", fontSize:13,
@@ -73,19 +102,23 @@
     padding:"8px 18px", borderRadius:6, fontFamily:"'DM Mono',monospace",
     fontSize:13, fontWeight:600, cursor:"pointer", border:"none", ...extra,
   });
+  const sectionLabel = {
+    color:"#8b949e", fontSize:10, fontFamily:"monospace",
+    fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase",
+  };
 
-  /* ─── API helper ─────────────────────────────────────────── */
-  async function callApi(scriptUrl, action, payload={}) {
-    const res  = await fetch(scriptUrl, { method:"POST", body:JSON.stringify({ action, payload }) });
+  /* ── API ─────────────────────────────────────────────────────── */
+  async function callApi(url, action, payload={}) {
+    const res  = await fetch(url, { method:"POST", body:JSON.stringify({ action, payload }) });
     const json = await res.json();
-    if (!json.ok) throw new Error(json.error || "API error");
+    if (!json.ok) throw new Error(json.error||"API error");
     return json;
   }
 
-  /* ─── Small UI atoms ─────────────────────────────────────── */
-  function Spinner() {
+  /* ── Atoms ───────────────────────────────────────────────────── */
+  function Spinner({ size=16 }) {
     return <div style={{
-      width:16, height:16, border:"2px solid #30363d",
+      width:size, height:size, border:"2px solid #30363d",
       borderTopColor:"#60a5fa", borderRadius:"50%",
       animation:"spin 0.7s linear infinite", display:"inline-block", flexShrink:0,
     }}/>;
@@ -100,7 +133,7 @@
   }
 
   function StatusPill({ value, onChange, disabled }) {
-    const s = STATUS_COLORS[value] || STATUS_COLORS["Not Started"];
+    const s = STATUS_COLORS[value]||STATUS_COLORS["Not Started"];
     return (
       <select value={value} onChange={e=>onChange(e.target.value)} disabled={disabled} style={{
         background:s.bg, color:s.text, border:`1px solid ${s.border}`,
@@ -113,6 +146,44 @@
     );
   }
 
+  function Toggle({ checked, onChange, label }) {
+    return (
+      <label className="chk-row" style={{ gap:10 }}>
+        <div
+          onClick={()=>onChange(!checked)}
+          style={{
+            width:36, height:20, borderRadius:10, flexShrink:0,
+            background: checked ? "#1e3a5f" : "#1e293b",
+            border: `1px solid ${checked?"#3b82f6":"#334155"}`,
+            position:"relative", cursor:"pointer", transition:"all 0.2s",
+          }}
+        >
+          <div style={{
+            position:"absolute", top:2, left: checked?17:2,
+            width:14, height:14, borderRadius:"50%",
+            background: checked?"#60a5fa":"#475569",
+            transition:"left 0.2s",
+          }}/>
+        </div>
+        <span style={{ color: checked?"#e6edf3":"#6b7280", fontSize:13, fontWeight: checked?600:400, transition:"color 0.2s" }}>{label}</span>
+      </label>
+    );
+  }
+
+  function SqlChip({ type, active, onClick }) {
+    return (
+      <div className="sql-chip" onClick={onClick} style={{
+        background: active ? type.color+"22" : "#161b22",
+        color:      active ? type.color       : "#6b7280",
+        borderColor: active ? type.color+"66" : "#30363d",
+        boxShadow:  active ? `0 0 8px ${type.color}33` : "none",
+      }}>
+        {active && <span>✓</span>}
+        {type.label}
+      </div>
+    );
+  }
+
   function PromoBar({ item }) {
     const track = getTrack(item);
     const path  = PROMO_PATHS[track];
@@ -121,7 +192,7 @@
         {path.map((env,i)=>{
           const sc   = STATUS_COLORS[item.statuses[env]];
           const em   = ENV_META[env];
-          const icon = {Done:"✓",Blocked:"✗","In Progress":"▶"}[item.statuses[env]] || "○";
+          const icon = {Done:"✓",Blocked:"✗","In Progress":"▶"}[item.statuses[env]]||"○";
           return (
             <React.Fragment key={env}>
               <div style={{
@@ -131,11 +202,10 @@
                 display:"flex", alignItems:"center", gap:3,
               }}>
                 <span style={{color:em.color}}>{env}</span>
-                <span>·</span>
-                <span>{icon}</span>
+                <span>·</span><span>{icon}</span>
               </div>
               {i<path.length-1 && (
-                <span style={{color:(i===2&&track==="hotfix")?"#F59E0B":"#374151", fontSize:11}}>
+                <span style={{color:(i===2&&track==="hotfix")?"#F59E0B":"#374151",fontSize:11}}>
                   {i===2&&track==="hotfix"?"↺":"→"}
                 </span>
               )}
@@ -149,13 +219,382 @@
   function StatCard({ label, value, color }) {
     return (
       <div style={{ background:"#0d1117", border:"1px solid #21262d", borderRadius:8, padding:"14px 18px" }}>
-        <div style={{ color:"#6b7280", fontSize:10, fontFamily:"monospace", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>{label}</div>
+        <div style={{...sectionLabel, marginBottom:4}}>{label}</div>
         <div style={{ color:color||"#e6edf3", fontFamily:"monospace", fontSize:26, fontWeight:800 }}>{value}</div>
       </div>
     );
   }
 
-  /* ─── Setup Screen ───────────────────────────────────────── */
+  /* ── Delete Confirmation Modal ───────────────────────────────── */
+  function ConfirmDelete({ itemTitle, onConfirm, onCancel }) {
+    return (
+      <div onClick={e=>e.target===e.currentTarget&&onCancel()} style={{
+        position:"fixed", inset:0, background:"#000000dd", zIndex:200,
+        display:"flex", alignItems:"center", justifyContent:"center", padding:24,
+      }}>
+        <div className="scale-in" style={{
+          background:"#0d1117", border:"1px solid #ef444433",
+          borderRadius:12, padding:32, maxWidth:420, width:"100%",
+          boxShadow:"0 0 60px #ef444422",
+        }}>
+          <div style={{ textAlign:"center", marginBottom:24 }}>
+            <div style={{ fontSize:36, marginBottom:12 }}>⚠️</div>
+            <h3 style={{ color:"#f87171", fontFamily:"'Space Grotesk',sans-serif", fontSize:18, fontWeight:700, marginBottom:8 }}>
+              Confirm Deletion
+            </h3>
+            <p style={{ color:"#6b7280", fontSize:13, lineHeight:1.6 }}>
+              You're about to permanently delete:
+            </p>
+            <div style={{
+              margin:"12px 0", padding:"8px 14px",
+              background:"#1a0808", border:"1px solid #ef444422",
+              borderRadius:6, color:"#fca5a5", fontFamily:"monospace", fontSize:13,
+            }}>
+              {itemTitle||"Untitled activity"}
+            </div>
+            <p style={{ color:"#6b7280", fontSize:12 }}>This action cannot be undone.</p>
+          </div>
+          <div style={{ display:"flex", gap:10 }}>
+            <button className="btn" onClick={onCancel} style={mkBtn({
+              flex:1, background:"#161b22", color:"#8b949e", border:"1px solid #30363d",
+            })}>Cancel</button>
+            <button className="btn" onClick={onConfirm} style={mkBtn({
+              flex:1, background:"#3d1010", color:"#f87171", border:"1px solid #ef4444",
+            })}>Yes, Delete</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Changes Section (inside modal) ─────────────────────────── */
+  function ChangesSection({ changes, setChanges }) {
+    const set = (key, val) => setChanges(c => ({ ...c, [key]: val }));
+    const toggleSql = (key) => {
+      const cur = changes.sqlTypes||[];
+      set("sqlTypes", cur.includes(key) ? cur.filter(k=>k!==key) : [...cur,key]);
+    };
+
+    return (
+      <div style={{ marginTop:4 }}>
+        {/* Config Changes */}
+        <div style={{
+          background:"#0d1117", border:"1px solid #21262d",
+          borderRadius:8, marginBottom:10, overflow:"hidden",
+        }}>
+          <div style={{ padding:"10px 14px", borderBottom: changes.hasConfig?"1px solid #21262d":"none" }}>
+            <Toggle
+              checked={changes.hasConfig}
+              onChange={v=>set("hasConfig",v)}
+              label="Config Changes"
+            />
+          </div>
+          {changes.hasConfig && (
+            <div style={{ padding:"10px 14px" }}>
+              <textarea
+                value={changes.configDetails}
+                onChange={e=>set("configDetails",e.target.value)}
+                placeholder="List config keys/values changed, environment-specific flags, feature toggles…"
+                rows={3}
+                style={{...inp, resize:"vertical", fontSize:12}}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Code Changes */}
+        <div style={{
+          background:"#0d1117", border:"1px solid #21262d",
+          borderRadius:8, marginBottom:10, overflow:"hidden",
+        }}>
+          <div style={{ padding:"10px 14px", borderBottom: changes.hasCodeChange?"1px solid #21262d":"none" }}>
+            <Toggle
+              checked={changes.hasCodeChange}
+              onChange={v=>set("hasCodeChange",v)}
+              label="Code Change"
+            />
+          </div>
+          {changes.hasCodeChange && (
+            <div style={{ padding:"10px 14px" }}>
+              <textarea
+                value={changes.codeDetails}
+                onChange={e=>set("codeDetails",e.target.value)}
+                placeholder="Describe modules/services changed, PRs, branch names, deployment steps…"
+                rows={3}
+                style={{...inp, resize:"vertical", fontSize:12}}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* SQL / DB Changes */}
+        <div style={{
+          background:"#0d1117", border:"1px solid #21262d",
+          borderRadius:8, overflow:"hidden",
+        }}>
+          <div style={{ padding:"10px 14px", borderBottom: changes.hasSql?"1px solid #21262d":"none" }}>
+            <Toggle
+              checked={changes.hasSql}
+              onChange={v=>set("hasSql",v)}
+              label="SQL / DB Changes"
+            />
+          </div>
+          {changes.hasSql && (
+            <div style={{ padding:"12px 14px" }}>
+              <div style={{...sectionLabel, marginBottom:10}}>Operation Types</div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:14 }}>
+                {SQL_TYPES.map(t=>(
+                  <SqlChip
+                    key={t.key}
+                    type={t}
+                    active={(changes.sqlTypes||[]).includes(t.key)}
+                    onClick={()=>toggleSql(t.key)}
+                  />
+                ))}
+              </div>
+              <div style={{...sectionLabel, marginBottom:8}}>Query / Change Details</div>
+              <textarea
+                value={changes.sqlDetails}
+                onChange={e=>set("sqlDetails",e.target.value)}
+                placeholder={"Describe the DB changes:\n• Table names affected\n• Script filenames\n• Rollback plan\n• Sequence / trigger changes"}
+                rows={4}
+                style={{...inp, resize:"vertical", fontSize:12, lineHeight:1.6}}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Item Modal ──────────────────────────────────────────────── */
+  function ItemModal({ item, onSave, onClose, onDelete, saving }) {
+    const [draft,   setDraft]   = useState({ ...item, statuses:{...item.statuses}, changes:{...EMPTY_CHANGES(),...(item.changes||{})} });
+    const [tab,     setTab]     = useState("details"); // details | changes | envs
+    const [delConf, setDelConf] = useState(false);
+
+    const track      = getTrack(draft);
+    const envEnabled = (env) => track==="hotfix" ? true : (env==="PROD"||["DEV","QA"].includes(env));
+
+    const set = (key,val) => setDraft(d=>({...d,[key]:val}));
+
+    useEffect(()=>{
+      const h = e=>e.key==="Escape"&&onClose();
+      document.addEventListener("keydown",h);
+      return ()=>document.removeEventListener("keydown",h);
+    },[]);
+
+    const changeCount = (() => {
+      const c = draft.changes;
+      return [c.hasConfig,c.hasCodeChange,c.hasSql].filter(Boolean).length;
+    })();
+
+    const tabs = [
+      { key:"details", label:"Details" },
+      { key:"changes", label:`Changes${changeCount>0?` (${changeCount})`:""}` },
+      { key:"envs",    label:"Environments" },
+    ];
+
+    return (
+      <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{
+        position:"fixed", inset:0, background:"#000000cc", zIndex:100,
+        display:"flex", alignItems:"center", justifyContent:"center", padding:24,
+      }}>
+        <div className="fade-in" style={{
+          background:"#0d1117", border:"1px solid #21262d", borderRadius:12,
+          width:"100%", maxWidth:700, maxHeight:"92vh", overflow:"hidden",
+          display:"flex", flexDirection:"column", boxShadow:"0 24px 64px #000c",
+        }}>
+          {/* Modal header */}
+          <div style={{ padding:"20px 24px 0", flexShrink:0 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+              <div>
+                <h2 style={{ color:"#e6edf3", fontFamily:"'DM Mono',monospace", fontSize:15, fontWeight:600 }}>
+                  {item.ticket ? `Edit — ${item.ticket}` : "New Activity"}
+                </h2>
+                {draft.dropNumber && (
+                  <span style={{ color:"#F59E0B", fontFamily:"monospace", fontSize:11, fontWeight:700 }}>
+                    {draft.dropNumber}
+                  </span>
+                )}
+              </div>
+              <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20, lineHeight:1 }}>✕</button>
+            </div>
+            {/* Tabs */}
+            <div style={{ display:"flex", gap:0, borderBottom:"1px solid #21262d" }}>
+              {tabs.map(t=>(
+                <button key={t.key} onClick={()=>setTab(t.key)} style={{
+                  background:"none", border:"none", cursor:"pointer",
+                  padding:"8px 18px", fontSize:12, fontFamily:"monospace", fontWeight:600,
+                  color: tab===t.key?"#60a5fa":"#6b7280",
+                  borderBottom: tab===t.key?"2px solid #3b82f6":"2px solid transparent",
+                  marginBottom:-1, transition:"color 0.15s",
+                }}>{t.label}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Scrollable body */}
+          <div style={{ padding:"20px 24px", overflow:"auto", flex:1 }}>
+
+            {/* ── TAB: Details ── */}
+            {tab==="details" && (
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+                {/* Drop Number */}
+                <label style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  <span style={sectionLabel}>Drop Number</span>
+                  <input
+                    value={draft.dropNumber}
+                    onChange={e=>set("dropNumber",e.target.value)}
+                    placeholder="D1-2026"
+                    style={inp}
+                  />
+                </label>
+                {/* Ticket */}
+                <label style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  <span style={sectionLabel}>Ticket / ID</span>
+                  <input value={draft.ticket} onChange={e=>set("ticket",e.target.value)} placeholder="JIRA-1234" style={inp}/>
+                </label>
+                {/* Title */}
+                <label style={{ gridColumn:"1/-1", display:"flex", flexDirection:"column", gap:6 }}>
+                  <span style={sectionLabel}>Title / Description</span>
+                  <input value={draft.title} onChange={e=>set("title",e.target.value)} placeholder="Brief description of this activity" style={inp}/>
+                </label>
+                {/* Type */}
+                <label style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  <span style={sectionLabel}>Type</span>
+                  <select value={draft.type} onChange={e=>set("type",e.target.value)} style={inp}>
+                    {TYPE_OPTIONS.map(o=><option key={o}>{o}</option>)}
+                  </select>
+                </label>
+                {/* Priority */}
+                <label style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  <span style={sectionLabel}>Priority</span>
+                  <select value={draft.priority} onChange={e=>set("priority",e.target.value)} style={inp}>
+                    {["Critical","High","Medium","Low"].map(o=><option key={o}>{o}</option>)}
+                  </select>
+                </label>
+                {/* Owner */}
+                <label style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  <span style={sectionLabel}>Owner</span>
+                  <input value={draft.owner} onChange={e=>set("owner",e.target.value)} placeholder="dev.name" style={inp}/>
+                </label>
+                {/* Date */}
+                <label style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  <span style={sectionLabel}>Date</span>
+                  <input type="date" value={draft.createdAt} onChange={e=>set("createdAt",e.target.value)} style={inp}/>
+                </label>
+                {/* Notes */}
+                <label style={{ gridColumn:"1/-1", display:"flex", flexDirection:"column", gap:6 }}>
+                  <span style={sectionLabel}>Notes</span>
+                  <textarea value={draft.notes} onChange={e=>set("notes",e.target.value)} rows={3} placeholder="General notes, context, risks, dependencies, rollback plan…" style={{...inp,resize:"vertical"}}/>
+                </label>
+              </div>
+            )}
+
+            {/* ── TAB: Changes ── */}
+            {tab==="changes" && (
+              <div>
+                <p style={{ color:"#6b7280", fontSize:12, marginBottom:16, lineHeight:1.6 }}>
+                  Select which types of changes are included in this activity. Toggle each section to expand and add details.
+                </p>
+                <ChangesSection
+                  changes={draft.changes}
+                  setChanges={changes=>setDraft(d=>({...d,changes}))}
+                />
+              </div>
+            )}
+
+            {/* ── TAB: Environments ── */}
+            {tab==="envs" && (
+              <div>
+                <p style={{ color:"#6b7280", fontSize:11, fontFamily:"monospace", marginBottom:14 }}>
+                  {track==="feature"
+                    ? "FEATURE TRACK: DEV → QA → PROD"
+                    : "HOTFIX/CONFIG TRACK: DEV2 → QA2 → PROD  ↺  DEV → QA"}
+                </p>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8 }}>
+                  {ENVS.map(env=>{
+                    const em      = ENV_META[env];
+                    const enabled = envEnabled(env);
+                    return (
+                      <div key={env} style={{
+                        background:enabled?em.bg:"#0d1117",
+                        border:`1px solid ${enabled?em.color+"55":"#21262d"}`,
+                        borderRadius:8, padding:"12px 10px",
+                      }}>
+                        <div style={{ color:em.color, fontFamily:"monospace", fontWeight:800, fontSize:12, marginBottom:2 }}>{em.label}</div>
+                        <div style={{ color:"#6b7280", fontSize:9, fontFamily:"monospace", marginBottom:10 }}>{em.sub}</div>
+                        <StatusPill
+                          value={draft.statuses[env]}
+                          onChange={val=>setDraft(d=>({...d,statuses:{...d.statuses,[env]:val}}))}
+                          disabled={!enabled}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Modal footer */}
+          <div style={{ padding:"14px 24px", borderTop:"1px solid #21262d", display:"flex", justifyContent:"space-between", gap:10, flexShrink:0, flexWrap:"wrap" }}>
+            {onDelete && (
+              <button className="btn" onClick={()=>setDelConf(true)} style={mkBtn({ background:"#3d1010", color:"#f87171", border:"1px solid #ef444444" })}>
+                🗑 Delete
+              </button>
+            )}
+            <div style={{ display:"flex", gap:10, marginLeft:"auto" }}>
+              <button className="btn" onClick={onClose} style={mkBtn({ background:"#161b22", color:"#8b949e", border:"1px solid #30363d" })}>Cancel</button>
+              <button className="btn" onClick={()=>onSave(draft)} disabled={saving} style={mkBtn({
+                background:"#1e3a5f", color:"#60a5fa", border:"1px solid #3b82f6",
+                display:"flex", alignItems:"center", gap:8,
+              })}>
+                {saving?<><Spinner/>Saving…</>:"Save Activity"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {delConf && (
+          <ConfirmDelete
+            itemTitle={draft.ticket ? `${draft.dropNumber||""} · ${draft.ticket} — ${draft.title}` : draft.title}
+            onConfirm={()=>{ setDelConf(false); onDelete(item.id); }}
+            onCancel={()=>setDelConf(false)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  /* ── Changes Summary (expanded row) ─────────────────────────── */
+  function ChangesSummary({ changes }) {
+    if (!changes) return null;
+    const chips = [];
+    if (changes.hasConfig)     chips.push({ label:"Config",      color:"#8B5CF6" });
+    if (changes.hasCodeChange) chips.push({ label:"Code",        color:"#3B82F6" });
+    if (changes.hasSql) {
+      (changes.sqlTypes||[]).forEach(k=>{
+        const t = SQL_TYPES.find(x=>x.key===k);
+        if (t) chips.push({ label:t.label, color:t.color });
+      });
+    }
+    if (chips.length===0) return null;
+    return (
+      <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
+        {chips.map((c,i)=>(
+          <span key={i} style={{
+            padding:"2px 9px", borderRadius:20, fontSize:10,
+            fontFamily:"monospace", fontWeight:700,
+            background:c.color+"22", color:c.color, border:`1px solid ${c.color}44`,
+          }}>{c.label}</span>
+        ))}
+      </div>
+    );
+  }
+
+  /* ── Setup Screen ────────────────────────────────────────────── */
   function SetupScreen({ onConnect }) {
     const [url,     setUrl]     = useState("");
     const [testing, setTesting] = useState(false);
@@ -167,37 +606,31 @@
       try {
         const res  = await fetch(url.trim()+"?action=getAll");
         const json = await res.json();
-        if (json.ok !== undefined) { onConnect(url.trim()); }
-        else { setError("Unexpected response — double-check the deployment settings."); }
-      } catch(e) { setError("Could not reach the script. Check the URL and try again."); }
+        if (json.ok!==undefined) onConnect(url.trim());
+        else setError("Unexpected response — double-check the deployment settings.");
+      } catch { setError("Could not reach the script. Check the URL and try again."); }
       setTesting(false);
     };
 
     const steps = [
-      { n:1, title:"Create a Google Sheet",  body:'Go to sheets.google.com → New sheet. Name it "Env Tracker" (or anything).' },
-      { n:2, title:"Open Apps Script",        body:"Extensions → Apps Script → delete any existing code in the editor." },
-      { n:3, title:"Paste Code.gs",           body:"Copy the entire Code.gs file (provided alongside this HTML) and paste it into the editor. Press Save (Ctrl+S)." },
-      { n:4, title:"Deploy as Web App",       body:'Click Deploy → New Deployment → Type: Web App. Set "Execute as: Me" and "Who has access: Anyone". Click Deploy & authorize.' },
-      { n:5, title:"Paste the URL below",     body:'Copy the generated Web App URL (https://script.google.com/macros/s/…/exec) and paste it into the field below.' },
+      { n:1, title:"Create a Google Sheet",  body:'Go to sheets.google.com → New sheet.' },
+      { n:2, title:"Open Apps Script",        body:"Extensions → Apps Script → delete existing code." },
+      { n:3, title:"Paste Code.gs",           body:"Copy the Code.gs file provided alongside this HTML and paste it. Press Save." },
+      { n:4, title:"Deploy as Web App",       body:'Deploy → New Deployment → Web App. Execute as: Me · Who has access: Anyone. Click Deploy & authorize.' },
+      { n:5, title:"Paste the URL below",     body:'Copy the generated /exec URL and paste it below.' },
     ];
 
     return (
       <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
         <div className="fade-in" style={{
           maxWidth:560, width:"100%", background:"#0d1117",
-          border:"1px solid #21262d", borderRadius:14,
-          padding:36, boxShadow:"0 24px 64px #000a",
+          border:"1px solid #21262d", borderRadius:14, padding:36, boxShadow:"0 24px 64px #000a",
         }}>
           <div style={{ marginBottom:24 }}>
             <div style={{ color:"#10B981", fontFamily:"monospace", fontSize:10, fontWeight:700, letterSpacing:"0.15em", marginBottom:8 }}>ONE-TIME SETUP</div>
-            <h1 style={{ fontSize:22, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, color:"#e6edf3", marginBottom:8 }}>
-              Connect to Google Sheets
-            </h1>
-            <p style={{ color:"#6b7280", fontSize:13, lineHeight:1.6 }}>
-              Your team's data lives in a Google Sheet. Follow these steps once, then everyone shares the same live tracker.
-            </p>
+            <h1 style={{ fontSize:22, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, color:"#e6edf3", marginBottom:8 }}>Connect to Google Sheets</h1>
+            <p style={{ color:"#6b7280", fontSize:13, lineHeight:1.6 }}>Your team's data lives in a shared Google Sheet. Follow these steps once.</p>
           </div>
-
           {steps.map(({n,title,body})=>(
             <div key={n} style={{ display:"flex", gap:14, marginBottom:16 }}>
               <div style={{
@@ -212,17 +645,10 @@
               </div>
             </div>
           ))}
-
           <div style={{ borderTop:"1px solid #21262d", paddingTop:20, marginTop:8 }}>
             <label style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              <span style={{ color:"#8b949e", fontSize:11, fontFamily:"monospace", fontWeight:600 }}>APPS SCRIPT WEB APP URL</span>
-              <input
-                value={url}
-                onChange={e=>setUrl(e.target.value)}
-                onKeyDown={e=>e.key==="Enter"&&connect()}
-                placeholder="https://script.google.com/macros/s/AKfycb.../exec"
-                style={inp}
-              />
+              <span style={sectionLabel}>Apps Script Web App URL</span>
+              <input value={url} onChange={e=>setUrl(e.target.value)} onKeyDown={e=>e.key==="Enter"&&connect()} placeholder="https://script.google.com/macros/s/AKfycb.../exec" style={inp}/>
             </label>
             {error&&<div style={{ color:"#f87171", fontSize:12, fontFamily:"monospace", marginTop:8 }}>{error}</div>}
             <button className="btn" onClick={connect} disabled={testing} style={mkBtn({
@@ -231,7 +657,7 @@
               color:"#60a5fa", border:"1px solid #3b82f644",
               display:"flex", alignItems:"center", justifyContent:"center", gap:10,
             })}>
-              {testing ? <><Spinner/>Testing connection…</> : "Connect & Open Tracker →"}
+              {testing?<><Spinner/>Testing connection…</>:"Connect & Open Tracker →"}
             </button>
           </div>
         </div>
@@ -239,113 +665,7 @@
     );
   }
 
-  /* ─── Item Modal ─────────────────────────────────────────── */
-  function ItemModal({ item, onSave, onClose, onDelete, saving }) {
-    const [draft, setDraft] = useState({ ...item, statuses:{ ...item.statuses } });
-    const track = getTrack(draft);
-    const envEnabled = (env) => track==="hotfix" ? true : (env==="PROD"||["DEV","QA"].includes(env));
-
-    useEffect(()=>{
-      const h = e => e.key==="Escape"&&onClose();
-      document.addEventListener("keydown",h);
-      return ()=>document.removeEventListener("keydown",h);
-    },[]);
-
-    return (
-      <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{
-        position:"fixed", inset:0, background:"#000000cc", zIndex:100,
-        display:"flex", alignItems:"center", justifyContent:"center", padding:24,
-      }}>
-        <div className="fade-in" style={{
-          background:"#0d1117", border:"1px solid #21262d", borderRadius:12,
-          width:"100%", maxWidth:680, maxHeight:"90vh", overflow:"auto",
-          padding:28, boxShadow:"0 24px 64px #000c",
-        }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
-            <h2 style={{ color:"#e6edf3", fontFamily:"'DM Mono',monospace", fontSize:15, fontWeight:600 }}>
-              {item.ticket ? `Edit — ${item.ticket}` : "New Activity"}
-            </h2>
-            <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20, lineHeight:1 }}>✕</button>
-          </div>
-
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
-            {[{label:"Ticket / ID",key:"ticket",ph:"JIRA-1234"},{label:"Owner",key:"owner",ph:"dev.name"}].map(({label,key,ph})=>(
-              <label key={key} style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                <span style={{ color:"#8b949e", fontSize:11, fontFamily:"monospace", fontWeight:600 }}>{label}</span>
-                <input value={draft[key]} onChange={e=>setDraft(d=>({...d,[key]:e.target.value}))} placeholder={ph} style={inp}/>
-              </label>
-            ))}
-            <label style={{ gridColumn:"1/-1", display:"flex", flexDirection:"column", gap:6 }}>
-              <span style={{ color:"#8b949e", fontSize:11, fontFamily:"monospace", fontWeight:600 }}>Title / Description</span>
-              <input value={draft.title} onChange={e=>setDraft(d=>({...d,title:e.target.value}))} placeholder="Brief description" style={inp}/>
-            </label>
-            {[{label:"Type",key:"type",opts:TYPE_OPTIONS},{label:"Priority",key:"priority",opts:["Critical","High","Medium","Low"]}].map(({label,key,opts})=>(
-              <label key={key} style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                <span style={{ color:"#8b949e", fontSize:11, fontFamily:"monospace", fontWeight:600 }}>{label}</span>
-                <select value={draft[key]} onChange={e=>setDraft(d=>({...d,[key]:e.target.value}))} style={inp}>
-                  {opts.map(o=><option key={o}>{o}</option>)}
-                </select>
-              </label>
-            ))}
-          </div>
-
-          <div style={{ marginTop:24, borderTop:"1px solid #21262d", paddingTop:20 }}>
-            <p style={{ color:"#8b949e", fontSize:10, fontFamily:"monospace", fontWeight:600, margin:"0 0 12px", letterSpacing:"0.08em" }}>
-              ENVIRONMENT STATUS —&nbsp;
-              {track==="feature"
-                ? "FEATURE TRACK: DEV → QA → PROD"
-                : "HOTFIX/CONFIG TRACK: DEV2 → QA2 → PROD  ↺  DEV → QA"}
-            </p>
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8 }}>
-              {ENVS.map(env=>{
-                const em      = ENV_META[env];
-                const enabled = envEnabled(env);
-                return (
-                  <div key={env} style={{
-                    background:enabled?em.bg:"#0d1117",
-                    border:`1px solid ${enabled?em.color+"55":"#21262d"}`,
-                    borderRadius:8, padding:"10px 8px",
-                  }}>
-                    <div style={{ color:em.color, fontFamily:"monospace", fontWeight:800, fontSize:12, marginBottom:2 }}>{em.label}</div>
-                    <div style={{ color:"#6b7280", fontSize:9, fontFamily:"monospace", marginBottom:8 }}>{em.sub}</div>
-                    <StatusPill
-                      value={draft.statuses[env]}
-                      onChange={val=>setDraft(d=>({...d,statuses:{...d.statuses,[env]:val}}))}
-                      disabled={!enabled}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <label style={{ display:"flex", flexDirection:"column", gap:6, marginTop:16 }}>
-            <span style={{ color:"#8b949e", fontSize:11, fontFamily:"monospace", fontWeight:600 }}>Notes</span>
-            <textarea value={draft.notes} onChange={e=>setDraft(d=>({...d,notes:e.target.value}))} rows={2} placeholder="Notes, risks, dependencies…" style={{...inp,resize:"vertical"}}/>
-          </label>
-
-          <div style={{ display:"flex", justifyContent:"space-between", marginTop:24, gap:10, flexWrap:"wrap" }}>
-            {onDelete&&(
-              <button className="btn" onClick={()=>onDelete(item.id)} style={mkBtn({ background:"#3d1010", color:"#f87171", border:"1px solid #ef444444" })}>
-                Delete
-              </button>
-            )}
-            <div style={{ display:"flex", gap:10, marginLeft:"auto" }}>
-              <button className="btn" onClick={onClose} style={mkBtn({ background:"#161b22", color:"#8b949e", border:"1px solid #30363d" })}>Cancel</button>
-              <button className="btn" onClick={()=>onSave(draft)} disabled={saving} style={mkBtn({
-                background:"#1e3a5f", color:"#60a5fa", border:"1px solid #3b82f6",
-                display:"flex", alignItems:"center", gap:8,
-              })}>
-                {saving ? <><Spinner/>Saving…</> : "Save Activity"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* ─── Main App ───────────────────────────────────────────── */
+  /* ── Main App ────────────────────────────────────────────────── */
   function App() {
     const [scriptUrl,  setScriptUrl]  = useState(()=>localStorage.getItem(SCRIPT_URL_KEY)||"");
     const [items,      setItems]      = useState([]);
@@ -353,19 +673,20 @@
     const [saving,     setSaving]     = useState(false);
     const [error,      setError]      = useState("");
     const [modal,      setModal]      = useState(null);
-    const [filter,     setFilter]     = useState({ type:"All", status:"All", track:"All", search:"" });
+    const [filter,     setFilter]     = useState({ type:"All", status:"All", track:"All", drop:"", search:"" });
     const [sort,       setSort]       = useState("createdAt");
     const [expandedId, setExpandedId] = useState(null);
     const [lastSync,   setLastSync]   = useState(null);
+    const [delTarget,  setDelTarget]  = useState(null); // for inline delete (outside modal)
 
-    const fetchAll = useCallback(async (url=scriptUrl) => {
+    const fetchAll = useCallback(async (url=scriptUrl)=>{
       if (!url) return;
       setLoading(true); setError("");
       try {
         const res  = await fetch(url+"?action=getAll");
         const json = await res.json();
         if (!json.ok) throw new Error(json.error);
-        setItems(json.items||[]);
+        setItems((json.items||[]).map(i=>({ ...i, changes: i.changes||EMPTY_CHANGES() })));
         setLastSync(new Date());
       } catch(e) { setError("Load failed: "+e.message); }
       setLoading(false);
@@ -373,12 +694,12 @@
 
     useEffect(()=>{ if(scriptUrl) fetchAll(scriptUrl); },[scriptUrl]);
 
-    const handleConnect = (url) => {
-      localStorage.setItem(SCRIPT_URL_KEY, url);
+    const handleConnect = (url)=>{
+      localStorage.setItem(SCRIPT_URL_KEY,url);
       setScriptUrl(url);
     };
 
-    const handleSave = async (draft) => {
+    const handleSave = async (draft)=>{
       setSaving(true); setError("");
       try {
         await callApi(scriptUrl,"save",draft);
@@ -389,39 +710,44 @@
       setSaving(false);
     };
 
-    const handleDelete = async (id) => {
+    const handleDelete = async (id)=>{
       setSaving(true); setError("");
       try {
         await callApi(scriptUrl,"delete",{id});
         setItems(prev=>prev.filter(i=>i.id!==id));
-        setModal(null); setExpandedId(null);
+        setModal(null); setExpandedId(null); setDelTarget(null);
       } catch(e) { setError("Delete failed: "+e.message); }
       setSaving(false);
     };
 
-    const updateStatus = async (item, env, val) => {
-      const updated = {...item, statuses:{...item.statuses,[env]:val}};
-      setItems(prev=>prev.map(i=>i.id===item.id?updated:i)); // optimistic
+    const updateStatus = async (item,env,val)=>{
+      const updated = {...item,statuses:{...item.statuses,[env]:val}};
+      setItems(prev=>prev.map(i=>i.id===item.id?updated:i));
       try { await callApi(scriptUrl,"save",updated); }
       catch(e) {
-        setItems(prev=>prev.map(i=>i.id===item.id?item:i)); // rollback
+        setItems(prev=>prev.map(i=>i.id===item.id?item:i));
         setError("Status update failed: "+e.message);
       }
     };
+
+    // unique drop numbers for filter
+    const allDrops = [...new Set(items.map(i=>i.dropNumber).filter(Boolean))].sort();
 
     const filtered = items.filter(i=>{
       const t=getTrack(i);
       if(filter.type  !=="All"&&i.type !==filter.type)  return false;
       if(filter.track !=="All"&&t      !==filter.track) return false;
       if(filter.status!=="All"&&!Object.values(i.statuses).includes(filter.status)) return false;
+      if(filter.drop  &&i.dropNumber!==filter.drop)      return false;
       if(filter.search){
         const q=filter.search.toLowerCase();
-        if(![i.ticket,i.title,i.owner].some(f=>f?.toLowerCase().includes(q))) return false;
+        if(![i.ticket,i.title,i.owner,i.dropNumber].some(f=>f?.toLowerCase().includes(q))) return false;
       }
       return true;
     }).sort((a,b)=>{
       if(sort==="priority") return ["Critical","High","Medium","Low"].indexOf(a.priority)-["Critical","High","Medium","Low"].indexOf(b.priority);
-      if(sort==="type") return a.type.localeCompare(b.type);
+      if(sort==="type")     return a.type.localeCompare(b.type);
+      if(sort==="drop")     return (a.dropNumber||"").localeCompare(b.dropNumber||"");
       return b.createdAt.localeCompare(a.createdAt);
     });
 
@@ -437,9 +763,9 @@
 
     return (
       <div style={{ minHeight:"100vh", padding:"24px 20px" }}>
-        <div style={{ maxWidth:1300, margin:"0 auto" }}>
+        <div style={{ maxWidth:1350, margin:"0 auto" }}>
 
-          {/* Header */}
+          {/* ── Header ── */}
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:24, flexWrap:"wrap", gap:16 }}>
             <div>
               <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
@@ -456,20 +782,18 @@
               <button className="btn" onClick={()=>fetchAll()} disabled={loading} style={mkBtn({
                 background:"#161b22", color:"#8b949e", border:"1px solid #30363d",
                 display:"flex", alignItems:"center", gap:8, padding:"9px 14px",
-              })}>
-                {loading?<Spinner/>:"↺"} Refresh
-              </button>
+              })}>{loading?<Spinner/>:"↺"} Refresh</button>
               <button className="btn" onClick={()=>setModal({mode:"new",item:EMPTY_ITEM()})} style={mkBtn({
                 background:"linear-gradient(135deg,#1e3a5f,#1e2d5f)", color:"#60a5fa",
                 border:"1px solid #3b82f644", boxShadow:"0 0 20px #3b82f622", padding:"10px 22px", fontSize:14,
               })}>＋ New Activity</button>
-              <button className="btn" title="Reconnect / change script URL"
+              <button className="btn" title="Change script URL"
                 onClick={()=>{ localStorage.removeItem(SCRIPT_URL_KEY); setScriptUrl(""); }}
                 style={mkBtn({ background:"none", color:"#374151", border:"1px solid #21262d", padding:"9px 12px", fontSize:13 })}>⚙</button>
             </div>
           </div>
 
-          {/* Error banner */}
+          {/* Error */}
           {error&&(
             <div style={{ background:"#3d1010", border:"1px solid #ef444444", borderRadius:8, padding:"10px 16px", marginBottom:16, color:"#f87171", fontSize:13, fontFamily:"monospace", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
               <span>{error}</span>
@@ -480,8 +804,8 @@
           {/* Track legend */}
           <div style={{ display:"flex", gap:12, marginBottom:20, flexWrap:"wrap" }}>
             {[
-              {label:"FEATURE TRACK",       path:"DEV → QA → PROD",                     color:"#3B82F6"},
-              {label:"HOTFIX / CONFIG TRACK",path:"DEV2 → QA2 → PROD  ↺  DEV → QA", color:"#F59E0B"},
+              {label:"FEATURE TRACK",        path:"DEV → QA → PROD",                     color:"#3B82F6"},
+              {label:"HOTFIX / CONFIG TRACK", path:"DEV2 → QA2 → PROD  ↺  DEV → QA",  color:"#F59E0B"},
             ].map(({label,path,color})=>(
               <div key={label} style={{
                 background:"#0d1117", border:`1px solid ${color}33`,
@@ -502,23 +826,14 @@
             <StatCard label="Promoted to PROD" value={stats.inProd}     color="#34d399"/>
           </div>
 
-          {/* Env progress bars */}
-          <div style={{
-            display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10,
-            background:"#0d1117", border:"1px solid #21262d",
-            borderRadius:10, padding:16, marginBottom:20,
-          }}>
+          {/* Env bars */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10, background:"#0d1117", border:"1px solid #21262d", borderRadius:10, padding:16, marginBottom:20 }}>
             {ENVS.map(env=>{
-              const em = ENV_META[env];
-              const envItems = items.filter(i=>{
-                const t=getTrack(i);
-                if(env==="PROD") return true;
-                if(t==="hotfix") return true;
-                return ["DEV","QA"].includes(env);
-              });
-              const done   = envItems.filter(i=>i.statuses[env]==="Done").length;
-              const active = envItems.filter(i=>i.statuses[env]==="In Progress").length;
-              const pct    = envItems.length ? Math.round((done/envItems.length)*100) : 0;
+              const em       = ENV_META[env];
+              const envItems = items.filter(i=>{ const t=getTrack(i); if(env==="PROD")return true; if(t==="hotfix")return true; return["DEV","QA"].includes(env); });
+              const done     = envItems.filter(i=>i.statuses[env]==="Done").length;
+              const active   = envItems.filter(i=>i.statuses[env]==="In Progress").length;
+              const pct      = envItems.length?Math.round((done/envItems.length)*100):0;
               return (
                 <div key={env} style={{ textAlign:"center" }}>
                   <div style={{ color:em.color, fontFamily:"monospace", fontWeight:800, fontSize:13 }}>{em.label}</div>
@@ -540,9 +855,14 @@
             <input
               value={filter.search}
               onChange={e=>setFilter(f=>({...f,search:e.target.value}))}
-              placeholder="🔍  Search ticket, title, owner..."
-              style={{...inp, flex:1, minWidth:200}}
+              placeholder="🔍  Search ticket, title, owner, drop…"
+              style={{...inp,flex:1,minWidth:200}}
             />
+            {/* Drop filter */}
+            <select value={filter.drop} onChange={e=>setFilter(f=>({...f,drop:e.target.value}))} style={{...inp,width:"auto",fontSize:12}}>
+              <option value="">All Drops</option>
+              {allDrops.map(d=><option key={d} value={d}>{d}</option>)}
+            </select>
             {[
               {key:"type",  opts:["All",...TYPE_OPTIONS]},
               {key:"track", opts:["All","feature","hotfix"]},
@@ -554,6 +874,7 @@
             ))}
             <select value={sort} onChange={e=>setSort(e.target.value)} style={{...inp,width:"auto",fontSize:12}}>
               <option value="createdAt">Sort: Date</option>
+              <option value="drop">Sort: Drop</option>
               <option value="priority">Sort: Priority</option>
               <option value="type">Sort: Type</option>
             </select>
@@ -561,32 +882,31 @@
 
           {/* Table */}
           <div style={{ background:"#0d1117", border:"1px solid #21262d", borderRadius:10, overflow:"hidden" }}>
+            {/* Header */}
             <div style={{
-              display:"grid", gridTemplateColumns:"100px 1fr 85px 75px 75px 1fr",
-              padding:"10px 16px", borderBottom:"1px solid #21262d",
-              background:"#010409", gap:8,
+              display:"grid", gridTemplateColumns:"90px 90px 1fr 80px 70px 70px 1fr",
+              padding:"10px 16px", borderBottom:"1px solid #21262d", background:"#010409", gap:8,
             }}>
-              {["TICKET","TITLE / OWNER","TYPE","PRIORITY","TRACK","PROMOTION PATH"].map(h=>(
+              {["DROP","TICKET","TITLE / OWNER","TYPE","PRIORITY","TRACK","PROMOTION PATH"].map(h=>(
                 <span key={h} style={{ color:"#6b7280", fontSize:10, fontFamily:"monospace", fontWeight:600, letterSpacing:"0.08em" }}>{h}</span>
               ))}
             </div>
 
             {loading&&items.length===0&&(
               <div style={{ padding:56, textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:12, color:"#6b7280", fontFamily:"monospace", fontSize:13 }}>
-                <Spinner/> Loading from Google Sheets…
+                <Spinner size={18}/> Loading from Google Sheets…
               </div>
             )}
-
             {!loading&&filtered.length===0&&(
               <div style={{ padding:56, textAlign:"center", color:"#374151", fontFamily:"monospace", fontSize:13 }}>
-                {items.length===0 ? 'No activities yet. Click "＋ New Activity" to get started.' : "No results match your filters."}
+                {items.length===0?'No activities yet. Click "＋ New Activity" to get started.':"No results match your filters."}
               </div>
             )}
 
             {filtered.map((item,idx)=>{
               const track      = getTrack(item);
               const isExpanded = expandedId===item.id;
-              const envEnabled = (env) => track==="hotfix" ? true : (env==="PROD"||["DEV","QA"].includes(env));
+              const envEnabled = (env)=>track==="hotfix"?true:(env==="PROD"||["DEV","QA"].includes(env));
 
               return (
                 <div key={item.id} style={{ borderBottom:idx<filtered.length-1?"1px solid #161b22":"none" }}>
@@ -594,11 +914,14 @@
                     className="row-hover"
                     onClick={()=>setExpandedId(isExpanded?null:item.id)}
                     style={{
-                      display:"grid", gridTemplateColumns:"100px 1fr 85px 75px 75px 1fr",
-                      padding:"13px 16px", alignItems:"center", gap:8,
+                      display:"grid", gridTemplateColumns:"90px 90px 1fr 80px 70px 70px 1fr",
+                      padding:"12px 16px", alignItems:"center", gap:8,
                       background:isExpanded?"#080c10":"transparent", transition:"background 0.15s",
                     }}
                   >
+                    <div style={{ color:"#F59E0B", fontFamily:"monospace", fontSize:11, fontWeight:700 }}>
+                      {item.dropNumber||<span style={{color:"#374151"}}>—</span>}
+                    </div>
                     <div style={{ fontFamily:"monospace", fontSize:12, color:"#8b949e" }}>{item.ticket||"—"}</div>
                     <div>
                       <div style={{ fontWeight:600, fontSize:13, color:"#e6edf3", marginBottom:2 }}>
@@ -612,9 +935,11 @@
                     <div><PromoBar item={item}/></div>
                   </div>
 
+                  {/* Expanded */}
                   {isExpanded&&(
                     <div className="fade-in" style={{ padding:"0 16px 16px", background:"#080c10", borderTop:"1px solid #161b22" }}>
-                      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8, marginBottom:12, paddingTop:14 }}>
+                      {/* Env pills */}
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8, marginBottom:14, paddingTop:14 }}>
                         {ENVS.map(env=>{
                           const em      = ENV_META[env];
                           const enabled = envEnabled(env);
@@ -626,24 +951,50 @@
                             }}>
                               <div style={{ color:em.color, fontFamily:"monospace", fontWeight:800, fontSize:11 }}>{em.label}</div>
                               <div style={{ color:"#6b7280", fontSize:9, fontFamily:"monospace", marginBottom:8 }}>{em.sub}</div>
-                              <StatusPill
-                                value={item.statuses[env]}
-                                onChange={val=>updateStatus(item,env,val)}
-                                disabled={!enabled}
-                              />
+                              <StatusPill value={item.statuses[env]} onChange={val=>updateStatus(item,env,val)} disabled={!enabled}/>
                             </div>
                           );
                         })}
                       </div>
+
+                      {/* Changes summary chips */}
+                      <ChangesSummary changes={item.changes}/>
+
+                      {/* Notes */}
                       {item.notes&&(
                         <div style={{ background:"#0d1117", border:"1px solid #21262d", borderRadius:6, padding:"8px 12px", marginBottom:10 }}>
                           <span style={{ color:"#6b7280", fontSize:10, fontFamily:"monospace" }}>NOTES  </span>
                           <span style={{ color:"#8b949e", fontSize:12 }}>{item.notes}</span>
                         </div>
                       )}
+
+                      {/* Change details inline */}
+                      {item.changes&&(item.changes.hasConfig||item.changes.hasCodeChange||item.changes.hasSql)&&(
+                        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:8, marginBottom:10 }}>
+                          {item.changes.hasConfig&&item.changes.configDetails&&(
+                            <div style={{ background:"#2d1f5e22", border:"1px solid #8B5CF644", borderRadius:6, padding:"8px 12px" }}>
+                              <div style={{ color:"#8B5CF6", fontSize:9, fontFamily:"monospace", fontWeight:700, marginBottom:4 }}>CONFIG</div>
+                              <div style={{ color:"#8b949e", fontSize:11, whiteSpace:"pre-wrap" }}>{item.changes.configDetails}</div>
+                            </div>
+                          )}
+                          {item.changes.hasCodeChange&&item.changes.codeDetails&&(
+                            <div style={{ background:"#1e3a5f22", border:"1px solid #3B82F644", borderRadius:6, padding:"8px 12px" }}>
+                              <div style={{ color:"#3B82F6", fontSize:9, fontFamily:"monospace", fontWeight:700, marginBottom:4 }}>CODE CHANGE</div>
+                              <div style={{ color:"#8b949e", fontSize:11, whiteSpace:"pre-wrap" }}>{item.changes.codeDetails}</div>
+                            </div>
+                          )}
+                          {item.changes.hasSql&&item.changes.sqlDetails&&(
+                            <div style={{ background:"#0f3d2a22", border:"1px solid #10B98144", borderRadius:6, padding:"8px 12px" }}>
+                              <div style={{ color:"#10B981", fontSize:9, fontFamily:"monospace", fontWeight:700, marginBottom:4 }}>SQL / DB</div>
+                              <div style={{ color:"#8b949e", fontSize:11, whiteSpace:"pre-wrap" }}>{item.changes.sqlDetails}</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
                         <button className="btn" onClick={()=>setModal({mode:"edit",item})} style={mkBtn({ background:"#161b22", color:"#8b949e", border:"1px solid #30363d", fontSize:12 })}>✎ Edit</button>
-                        <button className="btn" onClick={()=>handleDelete(item.id)} style={mkBtn({ background:"#3d1010", color:"#f87171", border:"1px solid #ef444433", fontSize:12 })}>Delete</button>
+                        <button className="btn" onClick={()=>setDelTarget(item)} style={mkBtn({ background:"#3d1010", color:"#f87171", border:"1px solid #ef444433", fontSize:12 })}>🗑 Delete</button>
                       </div>
                     </div>
                   )}
@@ -653,10 +1004,11 @@
           </div>
 
           <div style={{ marginTop:10, color:"#374151", fontSize:11, fontFamily:"monospace", textAlign:"right" }}>
-            {filtered.length} of {items.length} activities · Click any row to expand and update statuses inline
+            {filtered.length} of {items.length} activities · Click any row to expand
           </div>
         </div>
 
+        {/* Item Modal */}
         {modal&&(
           <ItemModal
             item={modal.item}
@@ -664,6 +1016,15 @@
             onClose={()=>setModal(null)}
             onDelete={modal.mode==="edit"?handleDelete:null}
             saving={saving}
+          />
+        )}
+
+        {/* Standalone delete confirm (from expanded row) */}
+        {delTarget&&(
+          <ConfirmDelete
+            itemTitle={delTarget.ticket?`${delTarget.dropNumber||""} · ${delTarget.ticket} — ${delTarget.title}`:delTarget.title}
+            onConfirm={()=>handleDelete(delTarget.id)}
+            onCancel={()=>setDelTarget(null)}
           />
         )}
       </div>
