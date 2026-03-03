@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Environment Promotion Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #010409; color: #e6edf3; font-family: 'Space Grotesk', system-ui, sans-serif; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0d1117; }
+    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+    select option { background: #161b22; color: #e6edf3; }
+    input::placeholder, textarea::placeholder { color: #374151; }
+    .row-hover:hover { background: #0d1117 !important; cursor: pointer; }
+    .btn { transition: opacity 0.15s, transform 0.1s; }
+    .btn:hover { opacity: 0.85; }
+    .btn:active { transform: scale(0.97); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+    .fade-in { animation: fadeIn 0.2s ease; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+  const { useState, useEffect, useCallback } = React;
+
+  /* ─── Constants ─────────────────────────────────────────── */
+  const ENVS = ["DEV","QA","DEV2","QA2","PROD"];
+  const ENV_META = {
+    DEV:  { label:"DEV",  sub:"Feature Branch",    color:"#3B82F6", bg:"#1e3a5f" },
+    QA:   { label:"QA",   sub:"Feature Testing",   color:"#8B5CF6", bg:"#2d1f5e" },
+    DEV2: { label:"DEV2", sub:"Prod Base",          color:"#F59E0B", bg:"#3d2f0f" },
+    QA2:  { label:"QA2",  sub:"Hotfix Validation",  color:"#F97316", bg:"#3d1f0f" },
+    PROD: { label:"PROD", sub:"Production",         color:"#10B981", bg:"#0f3d2a" },
+  };
+  const STATUS_OPTIONS = ["Not Started","In Progress","Done","Blocked","Skipped"];
+  const STATUS_COLORS  = {
+    "Not Started": { bg:"#1e293b", text:"#64748b", border:"#334155" },
+    "In Progress": { bg:"#1e3a5f", text:"#60a5fa", border:"#3b82f6" },
+    "Done":        { bg:"#0f3d2a", text:"#34d399", border:"#10b981" },
+    "Blocked":     { bg:"#3d1010", text:"#f87171", border:"#ef4444" },
+    "Skipped":     { bg:"#1a1a2e", text:"#6b7280", border:"#374151" },
+  };
+  const TYPE_OPTIONS = ["Feature","Hotfix","Config","Release","Rollback"];
+  const TYPE_COLORS  = { Feature:"#3B82F6", Hotfix:"#F59E0B", Config:"#8B5CF6", Release:"#10B981", Rollback:"#EF4444" };
+  const PROMO_PATHS  = {
+    feature: ["DEV","QA","PROD"],
+    hotfix:  ["DEV2","QA2","PROD","DEV","QA"],
+  };
+  const SCRIPT_URL_KEY = "env-tracker-script-url";
+  const EMPTY_STATUSES = () => ({ DEV:"Not Started", QA:"Not Started", DEV2:"Not Started", QA2:"Not Started", PROD:"Not Started" });
+  const EMPTY_ITEM = () => ({
+    id: Date.now().toString(36)+Math.random().toString(36).slice(2),
+    ticket:"", title:"", type:"Feature", owner:"", priority:"Medium",
+    notes:"", createdAt: new Date().toISOString().slice(0,10),
+    statuses: EMPTY_STATUSES(),
+  });
+  const getTrack = (item) => (item.type==="Hotfix"||item.type==="Config") ? "hotfix" : "feature";
+
+  /* ─── Shared styles ──────────────────────────────────────── */
+  const inp = {
+    background:"#161b22", border:"1px solid #30363d", borderRadius:6,
+    color:"#e6edf3", padding:"8px 10px", fontSize:13,
+    fontFamily:"'DM Mono',monospace", outline:"none", width:"100%",
+  };
+  const mkBtn = (extra={}) => ({
+    padding:"8px 18px", borderRadius:6, fontFamily:"'DM Mono',monospace",
+    fontSize:13, fontWeight:600, cursor:"pointer", border:"none", ...extra,
+  });
+
+  /* ─── API helper ─────────────────────────────────────────── */
+  async function callApi(scriptUrl, action, payload={}) {
+    const res  = await fetch(scriptUrl, { method:"POST", body:JSON.stringify({ action, payload }) });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || "API error");
+    return json;
+  }
+
+  /* ─── Small UI atoms ─────────────────────────────────────── */
+  function Spinner() {
+    return <div style={{
+      width:16, height:16, border:"2px solid #30363d",
+      borderTopColor:"#60a5fa", borderRadius:"50%",
+      animation:"spin 0.7s linear infinite", display:"inline-block", flexShrink:0,
+    }}/>;
+  }
+
+  function Badge({ children, color }) {
+    return <span style={{
+      display:"inline-block", padding:"2px 8px", borderRadius:4,
+      fontSize:11, fontWeight:700, letterSpacing:"0.05em",
+      background:color+"22", color, border:`1px solid ${color}44`, fontFamily:"monospace",
+    }}>{children}</span>;
+  }
+
+  function StatusPill({ value, onChange, disabled }) {
+    const s = STATUS_COLORS[value] || STATUS_COLORS["Not Started"];
+    return (
+      <select value={value} onChange={e=>onChange(e.target.value)} disabled={disabled} style={{
+        background:s.bg, color:s.text, border:`1px solid ${s.border}`,
+        borderRadius:5, padding:"3px 6px", fontSize:11, fontWeight:600,
+        fontFamily:"monospace", cursor:disabled?"not-allowed":"pointer",
+        width:"100%", outline:"none", opacity:disabled?0.3:1,
+      }}>
+        {STATUS_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
+      </select>
+    );
+  }
+
+  function PromoBar({ item }) {
+    const track = getTrack(item);
+    const path  = PROMO_PATHS[track];
+    return (
+      <div style={{ display:"flex", alignItems:"center", gap:3, flexWrap:"wrap" }}>
+        {path.map((env,i)=>{
+          const sc   = STATUS_COLORS[item.statuses[env]];
+          const em   = ENV_META[env];
+          const icon = {Done:"✓",Blocked:"✗","In Progress":"▶"}[item.statuses[env]] || "○";
+          return (
+            <React.Fragment key={env}>
+              <div style={{
+                padding:"2px 7px", borderRadius:4, background:sc.bg,
+                border:`1px solid ${sc.border}`, color:sc.text,
+                fontSize:10, fontFamily:"monospace", fontWeight:700,
+                display:"flex", alignItems:"center", gap:3,
+              }}>
+                <span style={{color:em.color}}>{env}</span>
+                <span>·</span>
+                <span>{icon}</span>
+              </div>
+              {i<path.length-1 && (
+                <span style={{color:(i===2&&track==="hotfix")?"#F59E0B":"#374151", fontSize:11}}>
+                  {i===2&&track==="hotfix"?"↺":"→"}
+                </span>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function StatCard({ label, value, color }) {
+    return (
+      <div style={{ background:"#0d1117", border:"1px solid #21262d", borderRadius:8, padding:"14px 18px" }}>
+        <div style={{ color:"#6b7280", fontSize:10, fontFamily:"monospace", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>{label}</div>
+        <div style={{ color:color||"#e6edf3", fontFamily:"monospace", fontSize:26, fontWeight:800 }}>{value}</div>
+      </div>
+    );
+  }
+
+  /* ─── Setup Screen ───────────────────────────────────────── */
+  function SetupScreen({ onConnect }) {
+    const [url,     setUrl]     = useState("");
+    const [testing, setTesting] = useState(false);
+    const [error,   setError]   = useState("");
+
+    const connect = async () => {
+      if (!url.trim()) { setError("Please paste your Script URL first."); return; }
+      setTesting(true); setError("");
+      try {
+        const res  = await fetch(url.trim()+"?action=getAll");
+        const json = await res.json();
+        if (json.ok !== undefined) { onConnect(url.trim()); }
+        else { setError("Unexpected response — double-check the deployment settings."); }
+      } catch(e) { setError("Could not reach the script. Check the URL and try again."); }
+      setTesting(false);
+    };
+
+    const steps = [
+      { n:1, title:"Create a Google Sheet",  body:'Go to sheets.google.com → New sheet. Name it "Env Tracker" (or anything).' },
+      { n:2, title:"Open Apps Script",        body:"Extensions → Apps Script → delete any existing code in the editor." },
+      { n:3, title:"Paste Code.gs",           body:"Copy the entire Code.gs file (provided alongside this HTML) and paste it into the editor. Press Save (Ctrl+S)." },
+      { n:4, title:"Deploy as Web App",       body:'Click Deploy → New Deployment → Type: Web App. Set "Execute as: Me" and "Who has access: Anyone". Click Deploy & authorize.' },
+      { n:5, title:"Paste the URL below",     body:'Copy the generated Web App URL (https://script.google.com/macros/s/…/exec) and paste it into the field below.' },
+    ];
+
+    return (
+      <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+        <div className="fade-in" style={{
+          maxWidth:560, width:"100%", background:"#0d1117",
+          border:"1px solid #21262d", borderRadius:14,
+          padding:36, boxShadow:"0 24px 64px #000a",
+        }}>
+          <div style={{ marginBottom:24 }}>
+            <div style={{ color:"#10B981", fontFamily:"monospace", fontSize:10, fontWeight:700, letterSpacing:"0.15em", marginBottom:8 }}>ONE-TIME SETUP</div>
+            <h1 style={{ fontSize:22, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, color:"#e6edf3", marginBottom:8 }}>
+              Connect to Google Sheets
+            </h1>
+            <p style={{ color:"#6b7280", fontSize:13, lineHeight:1.6 }}>
+              Your team's data lives in a Google Sheet. Follow these steps once, then everyone shares the same live tracker.
+            </p>
+          </div>
+
+          {steps.map(({n,title,body})=>(
+            <div key={n} style={{ display:"flex", gap:14, marginBottom:16 }}>
+              <div style={{
+                flexShrink:0, width:26, height:26, borderRadius:"50%",
+                background:"#1e3a5f", border:"1px solid #3b82f644",
+                color:"#60a5fa", fontFamily:"monospace", fontWeight:700, fontSize:12,
+                display:"flex", alignItems:"center", justifyContent:"center",
+              }}>{n}</div>
+              <div>
+                <div style={{ color:"#e6edf3", fontSize:13, fontWeight:600, marginBottom:3 }}>{title}</div>
+                <div style={{ color:"#6b7280", fontSize:12, lineHeight:1.6 }}>{body}</div>
+              </div>
+            </div>
+          ))}
+
+          <div style={{ borderTop:"1px solid #21262d", paddingTop:20, marginTop:8 }}>
+            <label style={{ display:"flex", flexDirection:"column", gap:8 }}>
+              <span style={{ color:"#8b949e", fontSize:11, fontFamily:"monospace", fontWeight:600 }}>APPS SCRIPT WEB APP URL</span>
+              <input
+                value={url}
+                onChange={e=>setUrl(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&connect()}
+                placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                style={inp}
+              />
+            </label>
+            {error&&<div style={{ color:"#f87171", fontSize:12, fontFamily:"monospace", marginTop:8 }}>{error}</div>}
+            <button className="btn" onClick={connect} disabled={testing} style={mkBtn({
+              marginTop:14, width:"100%", fontSize:14, padding:"11px",
+              background:"linear-gradient(135deg,#1e3a5f,#1e2d5f)",
+              color:"#60a5fa", border:"1px solid #3b82f644",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:10,
+            })}>
+              {testing ? <><Spinner/>Testing connection…</> : "Connect & Open Tracker →"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ─── Item Modal ─────────────────────────────────────────── */
+  function ItemModal({ item, onSave, onClose, onDelete, saving }) {
+    const [draft, setDraft] = useState({ ...item, statuses:{ ...item.statuses } });
+    const track = getTrack(draft);
+    const envEnabled = (env) => track==="hotfix" ? true : (env==="PROD"||["DEV","QA"].includes(env));
+
+    useEffect(()=>{
+      const h = e => e.key==="Escape"&&onClose();
+      document.addEventListener("keydown",h);
+      return ()=>document.removeEventListener("keydown",h);
+    },[]);
+
+    return (
+      <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{
+        position:"fixed", inset:0, background:"#000000cc", zIndex:100,
+        display:"flex", alignItems:"center", justifyContent:"center", padding:24,
+      }}>
+        <div className="fade-in" style={{
+          background:"#0d1117", border:"1px solid #21262d", borderRadius:12,
+          width:"100%", maxWidth:680, maxHeight:"90vh", overflow:"auto",
+          padding:28, boxShadow:"0 24px 64px #000c",
+        }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:24 }}>
+            <h2 style={{ color:"#e6edf3", fontFamily:"'DM Mono',monospace", fontSize:15, fontWeight:600 }}>
+              {item.ticket ? `Edit — ${item.ticket}` : "New Activity"}
+            </h2>
+            <button onClick={onClose} style={{ background:"none", border:"none", color:"#6b7280", cursor:"pointer", fontSize:20, lineHeight:1 }}>✕</button>
+          </div>
+
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+            {[{label:"Ticket / ID",key:"ticket",ph:"JIRA-1234"},{label:"Owner",key:"owner",ph:"dev.name"}].map(({label,key,ph})=>(
+              <label key={key} style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                <span style={{ color:"#8b949e", fontSize:11, fontFamily:"monospace", fontWeight:600 }}>{label}</span>
+                <input value={draft[key]} onChange={e=>setDraft(d=>({...d,[key]:e.target.value}))} placeholder={ph} style={inp}/>
+              </label>
+            ))}
+            <label style={{ gridColumn:"1/-1", display:"flex", flexDirection:"column", gap:6 }}>
+              <span style={{ color:"#8b949e", fontSize:11, fontFamily:"monospace", fontWeight:600 }}>Title / Description</span>
+              <input value={draft.title} onChange={e=>setDraft(d=>({...d,title:e.target.value}))} placeholder="Brief description" style={inp}/>
+            </label>
+            {[{label:"Type",key:"type",opts:TYPE_OPTIONS},{label:"Priority",key:"priority",opts:["Critical","High","Medium","Low"]}].map(({label,key,opts})=>(
+              <label key={key} style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                <span style={{ color:"#8b949e", fontSize:11, fontFamily:"monospace", fontWeight:600 }}>{label}</span>
+                <select value={draft[key]} onChange={e=>setDraft(d=>({...d,[key]:e.target.value}))} style={inp}>
+                  {opts.map(o=><option key={o}>{o}</option>)}
+                </select>
+              </label>
+            ))}
+          </div>
+
+          <div style={{ marginTop:24, borderTop:"1px solid #21262d", paddingTop:20 }}>
+            <p style={{ color:"#8b949e", fontSize:10, fontFamily:"monospace", fontWeight:600, margin:"0 0 12px", letterSpacing:"0.08em" }}>
+              ENVIRONMENT STATUS —&nbsp;
+              {track==="feature"
+                ? "FEATURE TRACK: DEV → QA → PROD"
+                : "HOTFIX/CONFIG TRACK: DEV2 → QA2 → PROD  ↺  DEV → QA"}
+            </p>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8 }}>
+              {ENVS.map(env=>{
+                const em      = ENV_META[env];
+                const enabled = envEnabled(env);
+                return (
+                  <div key={env} style={{
+                    background:enabled?em.bg:"#0d1117",
+                    border:`1px solid ${enabled?em.color+"55":"#21262d"}`,
+                    borderRadius:8, padding:"10px 8px",
+                  }}>
+                    <div style={{ color:em.color, fontFamily:"monospace", fontWeight:800, fontSize:12, marginBottom:2 }}>{em.label}</div>
+                    <div style={{ color:"#6b7280", fontSize:9, fontFamily:"monospace", marginBottom:8 }}>{em.sub}</div>
+                    <StatusPill
+                      value={draft.statuses[env]}
+                      onChange={val=>setDraft(d=>({...d,statuses:{...d.statuses,[env]:val}}))}
+                      disabled={!enabled}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <label style={{ display:"flex", flexDirection:"column", gap:6, marginTop:16 }}>
+            <span style={{ color:"#8b949e", fontSize:11, fontFamily:"monospace", fontWeight:600 }}>Notes</span>
+            <textarea value={draft.notes} onChange={e=>setDraft(d=>({...d,notes:e.target.value}))} rows={2} placeholder="Notes, risks, dependencies…" style={{...inp,resize:"vertical"}}/>
+          </label>
+
+          <div style={{ display:"flex", justifyContent:"space-between", marginTop:24, gap:10, flexWrap:"wrap" }}>
+            {onDelete&&(
+              <button className="btn" onClick={()=>onDelete(item.id)} style={mkBtn({ background:"#3d1010", color:"#f87171", border:"1px solid #ef444444" })}>
+                Delete
+              </button>
+            )}
+            <div style={{ display:"flex", gap:10, marginLeft:"auto" }}>
+              <button className="btn" onClick={onClose} style={mkBtn({ background:"#161b22", color:"#8b949e", border:"1px solid #30363d" })}>Cancel</button>
+              <button className="btn" onClick={()=>onSave(draft)} disabled={saving} style={mkBtn({
+                background:"#1e3a5f", color:"#60a5fa", border:"1px solid #3b82f6",
+                display:"flex", alignItems:"center", gap:8,
+              })}>
+                {saving ? <><Spinner/>Saving…</> : "Save Activity"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ─── Main App ───────────────────────────────────────────── */
+  function App() {
+    const [scriptUrl,  setScriptUrl]  = useState(()=>localStorage.getItem(SCRIPT_URL_KEY)||"");
+    const [items,      setItems]      = useState([]);
+    const [loading,    setLoading]    = useState(false);
+    const [saving,     setSaving]     = useState(false);
+    const [error,      setError]      = useState("");
+    const [modal,      setModal]      = useState(null);
+    const [filter,     setFilter]     = useState({ type:"All", status:"All", track:"All", search:"" });
+    const [sort,       setSort]       = useState("createdAt");
+    const [expandedId, setExpandedId] = useState(null);
+    const [lastSync,   setLastSync]   = useState(null);
+
+    const fetchAll = useCallback(async (url=scriptUrl) => {
+      if (!url) return;
+      setLoading(true); setError("");
+      try {
+        const res  = await fetch(url+"?action=getAll");
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error);
+        setItems(json.items||[]);
+        setLastSync(new Date());
+      } catch(e) { setError("Load failed: "+e.message); }
+      setLoading(false);
+    },[scriptUrl]);
+
+    useEffect(()=>{ if(scriptUrl) fetchAll(scriptUrl); },[scriptUrl]);
+
+    const handleConnect = (url) => {
+      localStorage.setItem(SCRIPT_URL_KEY, url);
+      setScriptUrl(url);
+    };
+
+    const handleSave = async (draft) => {
+      setSaving(true); setError("");
+      try {
+        await callApi(scriptUrl,"save",draft);
+        if (modal?.mode==="new") setItems(prev=>[draft,...prev]);
+        else setItems(prev=>prev.map(i=>i.id===draft.id?draft:i));
+        setModal(null);
+      } catch(e) { setError("Save failed: "+e.message); }
+      setSaving(false);
+    };
+
+    const handleDelete = async (id) => {
+      setSaving(true); setError("");
+      try {
+        await callApi(scriptUrl,"delete",{id});
+        setItems(prev=>prev.filter(i=>i.id!==id));
+        setModal(null); setExpandedId(null);
+      } catch(e) { setError("Delete failed: "+e.message); }
+      setSaving(false);
+    };
+
+    const updateStatus = async (item, env, val) => {
+      const updated = {...item, statuses:{...item.statuses,[env]:val}};
+      setItems(prev=>prev.map(i=>i.id===item.id?updated:i)); // optimistic
+      try { await callApi(scriptUrl,"save",updated); }
+      catch(e) {
+        setItems(prev=>prev.map(i=>i.id===item.id?item:i)); // rollback
+        setError("Status update failed: "+e.message);
+      }
+    };
+
+    const filtered = items.filter(i=>{
+      const t=getTrack(i);
+      if(filter.type  !=="All"&&i.type !==filter.type)  return false;
+      if(filter.track !=="All"&&t      !==filter.track) return false;
+      if(filter.status!=="All"&&!Object.values(i.statuses).includes(filter.status)) return false;
+      if(filter.search){
+        const q=filter.search.toLowerCase();
+        if(![i.ticket,i.title,i.owner].some(f=>f?.toLowerCase().includes(q))) return false;
+      }
+      return true;
+    }).sort((a,b)=>{
+      if(sort==="priority") return ["Critical","High","Medium","Low"].indexOf(a.priority)-["Critical","High","Medium","Low"].indexOf(b.priority);
+      if(sort==="type") return a.type.localeCompare(b.type);
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+
+    const stats = {
+      total:      items.length,
+      inProgress: items.filter(i=>Object.values(i.statuses).includes("In Progress")).length,
+      blocked:    items.filter(i=>Object.values(i.statuses).includes("Blocked")).length,
+      inProd:     items.filter(i=>i.statuses.PROD==="Done").length,
+    };
+    const priorityColor = { Critical:"#EF4444",High:"#F59E0B",Medium:"#3B82F6",Low:"#6B7280" };
+
+    if (!scriptUrl) return <SetupScreen onConnect={handleConnect}/>;
+
+    return (
+      <div style={{ minHeight:"100vh", padding:"24px 20px" }}>
+        <div style={{ maxWidth:1300, margin:"0 auto" }}>
+
+          {/* Header */}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:24, flexWrap:"wrap", gap:16 }}>
+            <div>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
+                <span style={{ fontSize:11, fontFamily:"monospace", color:"#10B981", letterSpacing:"0.15em", fontWeight:700 }}>● LIVE</span>
+                <span style={{ color:"#374151", fontSize:11, fontFamily:"monospace" }}>PIPELINE CONTROL</span>
+                {lastSync&&<span style={{ color:"#374151", fontSize:10, fontFamily:"monospace" }}>· synced {lastSync.toLocaleTimeString()}</span>}
+              </div>
+              <h1 style={{ fontSize:26, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, letterSpacing:"-0.02em", color:"#e6edf3" }}>
+                Environment Promotion Tracker
+              </h1>
+              <p style={{ marginTop:4, color:"#6b7280", fontSize:13 }}>Shared across your team · backed by Google Sheets</p>
+            </div>
+            <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
+              <button className="btn" onClick={()=>fetchAll()} disabled={loading} style={mkBtn({
+                background:"#161b22", color:"#8b949e", border:"1px solid #30363d",
+                display:"flex", alignItems:"center", gap:8, padding:"9px 14px",
+              })}>
+                {loading?<Spinner/>:"↺"} Refresh
+              </button>
+              <button className="btn" onClick={()=>setModal({mode:"new",item:EMPTY_ITEM()})} style={mkBtn({
+                background:"linear-gradient(135deg,#1e3a5f,#1e2d5f)", color:"#60a5fa",
+                border:"1px solid #3b82f644", boxShadow:"0 0 20px #3b82f622", padding:"10px 22px", fontSize:14,
+              })}>＋ New Activity</button>
+              <button className="btn" title="Reconnect / change script URL"
+                onClick={()=>{ localStorage.removeItem(SCRIPT_URL_KEY); setScriptUrl(""); }}
+                style={mkBtn({ background:"none", color:"#374151", border:"1px solid #21262d", padding:"9px 12px", fontSize:13 })}>⚙</button>
+            </div>
+          </div>
+
+          {/* Error banner */}
+          {error&&(
+            <div style={{ background:"#3d1010", border:"1px solid #ef444444", borderRadius:8, padding:"10px 16px", marginBottom:16, color:"#f87171", fontSize:13, fontFamily:"monospace", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <span>{error}</span>
+              <button onClick={()=>setError("")} style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer", fontSize:16 }}>✕</button>
+            </div>
+          )}
+
+          {/* Track legend */}
+          <div style={{ display:"flex", gap:12, marginBottom:20, flexWrap:"wrap" }}>
+            {[
+              {label:"FEATURE TRACK",       path:"DEV → QA → PROD",                     color:"#3B82F6"},
+              {label:"HOTFIX / CONFIG TRACK",path:"DEV2 → QA2 → PROD  ↺  DEV → QA", color:"#F59E0B"},
+            ].map(({label,path,color})=>(
+              <div key={label} style={{
+                background:"#0d1117", border:`1px solid ${color}33`,
+                borderLeft:`3px solid ${color}`, borderRadius:"0 6px 6px 0",
+                padding:"8px 16px", display:"flex", alignItems:"center", gap:14,
+              }}>
+                <span style={{ color, fontFamily:"monospace", fontSize:10, fontWeight:800, letterSpacing:"0.1em" }}>{label}</span>
+                <span style={{ color:"#6b7280", fontFamily:"monospace", fontSize:11 }}>{path}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Stats */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:20 }}>
+            <StatCard label="Total Activities" value={stats.total}/>
+            <StatCard label="In Progress"      value={stats.inProgress} color="#60a5fa"/>
+            <StatCard label="Blocked"          value={stats.blocked}    color="#f87171"/>
+            <StatCard label="Promoted to PROD" value={stats.inProd}     color="#34d399"/>
+          </div>
+
+          {/* Env progress bars */}
+          <div style={{
+            display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10,
+            background:"#0d1117", border:"1px solid #21262d",
+            borderRadius:10, padding:16, marginBottom:20,
+          }}>
+            {ENVS.map(env=>{
+              const em = ENV_META[env];
+              const envItems = items.filter(i=>{
+                const t=getTrack(i);
+                if(env==="PROD") return true;
+                if(t==="hotfix") return true;
+                return ["DEV","QA"].includes(env);
+              });
+              const done   = envItems.filter(i=>i.statuses[env]==="Done").length;
+              const active = envItems.filter(i=>i.statuses[env]==="In Progress").length;
+              const pct    = envItems.length ? Math.round((done/envItems.length)*100) : 0;
+              return (
+                <div key={env} style={{ textAlign:"center" }}>
+                  <div style={{ color:em.color, fontFamily:"monospace", fontWeight:800, fontSize:13 }}>{em.label}</div>
+                  <div style={{ color:"#6b7280", fontSize:9, fontFamily:"monospace", marginBottom:8 }}>{em.sub}</div>
+                  <div style={{ height:4, background:"#21262d", borderRadius:2, marginBottom:6, overflow:"hidden" }}>
+                    <div style={{ height:"100%", width:`${pct}%`, background:em.color, borderRadius:2, transition:"width 0.4s" }}/>
+                  </div>
+                  <div style={{ fontSize:10, color:"#8b949e", fontFamily:"monospace" }}>
+                    <span style={{color:"#34d399"}}>{done}✓</span> / {envItems.length}
+                    {active>0&&<span style={{color:"#60a5fa"}}> · {active}▶</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Filters */}
+          <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap", alignItems:"center" }}>
+            <input
+              value={filter.search}
+              onChange={e=>setFilter(f=>({...f,search:e.target.value}))}
+              placeholder="🔍  Search ticket, title, owner..."
+              style={{...inp, flex:1, minWidth:200}}
+            />
+            {[
+              {key:"type",  opts:["All",...TYPE_OPTIONS]},
+              {key:"track", opts:["All","feature","hotfix"]},
+              {key:"status",opts:["All",...STATUS_OPTIONS]},
+            ].map(({key,opts})=>(
+              <select key={key} value={filter[key]} onChange={e=>setFilter(f=>({...f,[key]:e.target.value}))} style={{...inp,width:"auto",fontSize:12}}>
+                {opts.map(o=><option key={o}>{o}</option>)}
+              </select>
+            ))}
+            <select value={sort} onChange={e=>setSort(e.target.value)} style={{...inp,width:"auto",fontSize:12}}>
+              <option value="createdAt">Sort: Date</option>
+              <option value="priority">Sort: Priority</option>
+              <option value="type">Sort: Type</option>
+            </select>
+          </div>
+
+          {/* Table */}
+          <div style={{ background:"#0d1117", border:"1px solid #21262d", borderRadius:10, overflow:"hidden" }}>
+            <div style={{
+              display:"grid", gridTemplateColumns:"100px 1fr 85px 75px 75px 1fr",
+              padding:"10px 16px", borderBottom:"1px solid #21262d",
+              background:"#010409", gap:8,
+            }}>
+              {["TICKET","TITLE / OWNER","TYPE","PRIORITY","TRACK","PROMOTION PATH"].map(h=>(
+                <span key={h} style={{ color:"#6b7280", fontSize:10, fontFamily:"monospace", fontWeight:600, letterSpacing:"0.08em" }}>{h}</span>
+              ))}
+            </div>
+
+            {loading&&items.length===0&&(
+              <div style={{ padding:56, textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:12, color:"#6b7280", fontFamily:"monospace", fontSize:13 }}>
+                <Spinner/> Loading from Google Sheets…
+              </div>
+            )}
+
+            {!loading&&filtered.length===0&&(
+              <div style={{ padding:56, textAlign:"center", color:"#374151", fontFamily:"monospace", fontSize:13 }}>
+                {items.length===0 ? 'No activities yet. Click "＋ New Activity" to get started.' : "No results match your filters."}
+              </div>
+            )}
+
+            {filtered.map((item,idx)=>{
+              const track      = getTrack(item);
+              const isExpanded = expandedId===item.id;
+              const envEnabled = (env) => track==="hotfix" ? true : (env==="PROD"||["DEV","QA"].includes(env));
+
+              return (
+                <div key={item.id} style={{ borderBottom:idx<filtered.length-1?"1px solid #161b22":"none" }}>
+                  <div
+                    className="row-hover"
+                    onClick={()=>setExpandedId(isExpanded?null:item.id)}
+                    style={{
+                      display:"grid", gridTemplateColumns:"100px 1fr 85px 75px 75px 1fr",
+                      padding:"13px 16px", alignItems:"center", gap:8,
+                      background:isExpanded?"#080c10":"transparent", transition:"background 0.15s",
+                    }}
+                  >
+                    <div style={{ fontFamily:"monospace", fontSize:12, color:"#8b949e" }}>{item.ticket||"—"}</div>
+                    <div>
+                      <div style={{ fontWeight:600, fontSize:13, color:"#e6edf3", marginBottom:2 }}>
+                        {item.title||<em style={{color:"#374151"}}>Untitled</em>}
+                      </div>
+                      {item.owner&&<div style={{ color:"#6b7280", fontSize:11, fontFamily:"monospace" }}>@{item.owner}</div>}
+                    </div>
+                    <div><Badge color={TYPE_COLORS[item.type]}>{item.type}</Badge></div>
+                    <div style={{ color:priorityColor[item.priority], fontFamily:"monospace", fontSize:11, fontWeight:700 }}>{item.priority}</div>
+                    <div><Badge color={track==="feature"?"#3B82F6":"#F59E0B"}>{track==="feature"?"Feature":"Hotfix"}</Badge></div>
+                    <div><PromoBar item={item}/></div>
+                  </div>
+
+                  {isExpanded&&(
+                    <div className="fade-in" style={{ padding:"0 16px 16px", background:"#080c10", borderTop:"1px solid #161b22" }}>
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8, marginBottom:12, paddingTop:14 }}>
+                        {ENVS.map(env=>{
+                          const em      = ENV_META[env];
+                          const enabled = envEnabled(env);
+                          return (
+                            <div key={env} style={{
+                              background:enabled?em.bg:"#0d1117",
+                              border:`1px solid ${enabled?em.color+"55":"#21262d"}`,
+                              borderRadius:8, padding:"10px 8px", opacity:enabled?1:0.35,
+                            }}>
+                              <div style={{ color:em.color, fontFamily:"monospace", fontWeight:800, fontSize:11 }}>{em.label}</div>
+                              <div style={{ color:"#6b7280", fontSize:9, fontFamily:"monospace", marginBottom:8 }}>{em.sub}</div>
+                              <StatusPill
+                                value={item.statuses[env]}
+                                onChange={val=>updateStatus(item,env,val)}
+                                disabled={!enabled}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {item.notes&&(
+                        <div style={{ background:"#0d1117", border:"1px solid #21262d", borderRadius:6, padding:"8px 12px", marginBottom:10 }}>
+                          <span style={{ color:"#6b7280", fontSize:10, fontFamily:"monospace" }}>NOTES  </span>
+                          <span style={{ color:"#8b949e", fontSize:12 }}>{item.notes}</span>
+                        </div>
+                      )}
+                      <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+                        <button className="btn" onClick={()=>setModal({mode:"edit",item})} style={mkBtn({ background:"#161b22", color:"#8b949e", border:"1px solid #30363d", fontSize:12 })}>✎ Edit</button>
+                        <button className="btn" onClick={()=>handleDelete(item.id)} style={mkBtn({ background:"#3d1010", color:"#f87171", border:"1px solid #ef444433", fontSize:12 })}>Delete</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop:10, color:"#374151", fontSize:11, fontFamily:"monospace", textAlign:"right" }}>
+            {filtered.length} of {items.length} activities · Click any row to expand and update statuses inline
+          </div>
+        </div>
+
+        {modal&&(
+          <ItemModal
+            item={modal.item}
+            onSave={handleSave}
+            onClose={()=>setModal(null)}
+            onDelete={modal.mode==="edit"?handleDelete:null}
+            saving={saving}
+          />
+        )}
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
