@@ -3,251 +3,184 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>ENV PROMOTION TRACKER</title>
+<title>ENV Promotion Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Bebas+Neue&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
 :root {
-  --bg:       #04070e;
-  --bg2:      #080d18;
-  --bg3:      #0d1425;
-  --panel:    #0a1020;
-  --border:   #1a2540;
-  --border2:  #243050;
-  --amber:    #f0a500;
-  --amber2:   #ffc740;
-  --amber-dim:#7a5200;
-  --green:    #00e676;
-  --green-dim:#004d27;
-  --red:      #ff4444;
-  --red-dim:  #4d0a0a;
-  --blue:     #4488ff;
-  --blue-dim: #0a1a44;
-  --purple:   #aa66ff;
-  --cyan:     #00ccff;
-  --text:     #b8cce0;
-  --text2:    #6a85a8;
-  --text3:    #3a506a;
-  --font-mono: 'IBM Plex Mono', monospace;
-  --font-head: 'Bebas Neue', sans-serif;
-  --font-body: 'IBM Plex Sans', sans-serif;
+  --bg:         #f0f4f8;
+  --bg2:        #ffffff;
+  --bg3:        #f7f9fc;
+  --panel:      #ffffff;
+  --border:     #dde3ed;
+  --border2:    #c8d0e0;
+  --shadow:     0 1px 3px rgba(30,58,138,0.07), 0 4px 12px rgba(30,58,138,0.05);
+  --shadow-lg:  0 8px 32px rgba(30,58,138,0.12), 0 2px 8px rgba(30,58,138,0.06);
+
+  --blue:       #2563eb;
+  --blue-light: #eff6ff;
+  --blue-mid:   #bfdbfe;
+  --indigo:     #4f46e5;
+  --green:      #059669;
+  --green-light:#ecfdf5;
+  --red:        #dc2626;
+  --red-light:  #fef2f2;
+  --amber:      #d97706;
+  --amber-light:#fffbeb;
+  --purple:     #7c3aed;
+  --purple-light:#f5f3ff;
+  --cyan:       #0891b2;
+  --cyan-light: #ecfeff;
+  --orange:     #ea580c;
+  --orange-light:#fff7ed;
+
+  --text:       #0f172a;
+  --text2:      #475569;
+  --text3:      #94a3b8;
+  --text4:      #cbd5e1;
+
+  --font-head: 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html{scroll-behavior:smooth;}
-body{
-  background:var(--bg);
-  color:var(--text);
-  font-family:var(--font-mono);
-  min-height:100vh;
-  overflow-x:hidden;
-}
-
-/* Scanline overlay */
-body::before{
-  content:'';
-  position:fixed;inset:0;
-  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);
-  pointer-events:none;
-  z-index:9999;
-}
-/* Ambient grid bg */
-body::after{
-  content:'';
-  position:fixed;inset:0;
-  background-image:
-    linear-gradient(rgba(240,165,0,0.03) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(240,165,0,0.03) 1px,transparent 1px);
-  background-size:40px 40px;
-  pointer-events:none;
-  z-index:0;
-}
-
-/* ── Scrollbar ── */
-::-webkit-scrollbar{width:5px;height:5px;}
-::-webkit-scrollbar-track{background:var(--bg);}
-::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
-select option{background:var(--bg2);color:var(--text);}
+body{background:var(--bg);color:var(--text);font-family:var(--font-head);min-height:100vh;}
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:#f1f5f9;}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:#94a3b8;}
+select option{background:#fff;color:#0f172a;}
 input::placeholder,textarea::placeholder{color:var(--text3);}
 
-/* ── Animations ── */
 @keyframes spin{to{transform:rotate(360deg);}}
-@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
-@keyframes slideDown{from{opacity:0;transform:translateY(-10px);}to{opacity:1;transform:none;}}
-@keyframes slideUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(240,165,0,0.4);}50%{box-shadow:0 0 0 8px rgba(240,165,0,0);}}
-@keyframes glow{0%,100%{text-shadow:0 0 8px rgba(0,230,118,0.8);}50%{text-shadow:0 0 20px rgba(0,230,118,1),0 0 40px rgba(0,230,118,0.4);}}
-@keyframes scanIn{from{opacity:0;transform:translateX(-6px);}to{opacity:1;transform:none;}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:none;}}
+@keyframes scaleIn{from{opacity:0;transform:scale(0.95);}to{opacity:1;transform:scale(1);}}
+@keyframes pulse-dot{0%,100%{box-shadow:0 0 0 0 rgba(5,150,105,0.4);}50%{box-shadow:0 0 0 5px rgba(5,150,105,0);}}
 
-.slide-down{animation:slideDown 0.22s ease;}
-.slide-up  {animation:slideUp   0.22s ease;}
-.scan-in   {animation:scanIn    0.18s ease;}
+.fade-in  {animation:fadeIn   0.2s ease;}
+.slide-down{animation:slideDown 0.2s ease;}
+.scale-in {animation:scaleIn  0.18s ease;}
 
-/* ── Base inputs ── */
+/* ── Inputs ── */
 .inp{
-  background:var(--bg2);
-  border:1px solid var(--border2);
-  border-radius:3px;
-  color:var(--text);
-  padding:8px 12px;
-  font-size:12px;
-  font-family:var(--font-mono);
-  outline:none;
-  width:100%;
+  background:#fff;border:1.5px solid var(--border);border-radius:8px;
+  color:var(--text);padding:9px 12px;font-size:13px;
+  font-family:var(--font-head);outline:none;width:100%;
   transition:border-color 0.15s,box-shadow 0.15s;
 }
-.inp:focus{border-color:var(--amber);box-shadow:0 0 0 2px rgba(240,165,0,0.12);}
+.inp:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,0.1);}
 
 /* ── Buttons ── */
-.btn{
-  font-family:var(--font-mono);
-  font-size:11px;
-  font-weight:600;
-  cursor:pointer;
-  border:none;
-  border-radius:3px;
-  padding:8px 16px;
-  transition:all 0.15s;
-  letter-spacing:0.05em;
-  text-transform:uppercase;
-}
+.btn{font-family:var(--font-head);font-size:12px;font-weight:600;cursor:pointer;border:none;border-radius:8px;padding:8px 16px;transition:all 0.15s;display:inline-flex;align-items:center;gap:6px;}
 .btn:active{transform:scale(0.97);}
-.btn-amber{background:rgba(240,165,0,0.12);color:var(--amber);border:1px solid rgba(240,165,0,0.3);}
-.btn-amber:hover{background:rgba(240,165,0,0.2);border-color:var(--amber);}
-.btn-green{background:rgba(0,230,118,0.1);color:var(--green);border:1px solid rgba(0,230,118,0.3);}
-.btn-green:hover{background:rgba(0,230,118,0.18);}
-.btn-red{background:rgba(255,68,68,0.1);color:var(--red);border:1px solid rgba(255,68,68,0.3);}
-.btn-red:hover{background:rgba(255,68,68,0.2);}
-.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border2);}
-.btn-ghost:hover{border-color:var(--border2);color:var(--text);background:var(--bg3);}
+.btn-blue{background:var(--blue);color:#fff;}
+.btn-blue:hover{background:#1d4ed8;box-shadow:0 4px 12px rgba(37,99,235,0.3);}
+.btn-green{background:var(--green-light);color:var(--green);border:1.5px solid #a7f3d0;}
+.btn-green:hover{background:#d1fae5;}
+.btn-red{background:var(--red-light);color:var(--red);border:1.5px solid #fecaca;}
+.btn-red:hover{background:#fee2e2;}
+.btn-ghost{background:#fff;color:var(--text2);border:1.5px solid var(--border);}
+.btn-ghost:hover{border-color:var(--border2);background:var(--bg3);color:var(--text);}
+.btn-amber{background:var(--amber-light);color:var(--amber);border:1.5px solid #fde68a;}
+.btn-amber:hover{background:#fef3c7;}
 
-/* ── Tab bar ── */
-.tab{background:none;border:none;font-family:var(--font-mono);font-size:11px;font-weight:600;cursor:pointer;padding:10px 18px;color:var(--text3);border-bottom:2px solid transparent;text-transform:uppercase;letter-spacing:0.08em;transition:all 0.15s;}
+/* ── Tabs ── */
+.tab{background:none;border:none;font-family:var(--font-head);font-size:12px;font-weight:600;cursor:pointer;padding:10px 18px;color:var(--text3);border-bottom:2px solid transparent;margin-bottom:-1px;transition:all 0.15s;}
 .tab:hover{color:var(--text2);}
-.tab.active{color:var(--amber);border-bottom-color:var(--amber);}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue);}
 
-/* ── Toggle switch ── */
-.toggle-wrap{display:flex;align-items:center;gap:12px;cursor:pointer;padding:8px 0;}
-.toggle-track{width:38px;height:20px;border-radius:10px;position:relative;flex-shrink:0;transition:all 0.2s;}
-.toggle-thumb{position:absolute;top:2px;width:16px;height:16px;border-radius:50%;transition:left 0.2s;}
+/* ── Toggle ── */
+.toggle-wrap{display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0;user-select:none;}
+.toggle-track{width:40px;height:22px;border-radius:11px;position:relative;flex-shrink:0;transition:all 0.2s;border:1.5px solid;}
+.toggle-thumb{position:absolute;top:2px;width:14px;height:14px;border-radius:50%;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);}
 
-/* ── SQL chips ── */
-.sql-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:2px;font-size:10px;font-family:var(--font-mono);font-weight:700;cursor:pointer;border:1px solid;transition:all 0.15s;letter-spacing:0.06em;text-transform:uppercase;user-select:none;}
+/* ── Row hover ── */
+.act-row{border-bottom:1px solid var(--border);transition:background 0.1s;cursor:pointer;}
+.act-row:hover{background:#f8faff;}
 
-/* ── Row card ── */
-.activity-row{
-  position:relative;
-  border-bottom:1px solid var(--border);
-  transition:background 0.12s;
-  cursor:pointer;
-}
-.activity-row:hover{background:rgba(240,165,0,0.03);}
-.activity-row:hover .row-indicator{opacity:1;}
-.row-indicator{
-  position:absolute;left:0;top:0;bottom:0;width:3px;
-  opacity:0;transition:opacity 0.15s;
-}
+/* ── SQL chip ── */
+.sql-chip{display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:20px;font-size:11px;font-family:var(--font-mono);font-weight:600;cursor:pointer;border:1.5px solid;transition:all 0.15s;user-select:none;letter-spacing:0.03em;}
 
-/* ── Status node ── */
-.status-node{
-  display:inline-flex;align-items:center;gap:4px;
-  padding:3px 8px;font-size:9px;font-weight:700;
-  font-family:var(--font-mono);letter-spacing:0.06em;
-  border-radius:2px;border:1px solid;white-space:nowrap;
-}
+/* ── Status pill ── */
+.status-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600;font-family:var(--font-mono);border:1.5px solid;white-space:nowrap;}
 
-/* ── Circuit connector ── */
-.connector{
-  display:inline-block;width:14px;height:1px;
-  vertical-align:middle;margin:0 1px;flex-shrink:0;
-}
+/* ── Card ── */
+.card{background:var(--panel);border:1.5px solid var(--border);border-radius:12px;box-shadow:var(--shadow);}
 
-/* ── Panel ── */
-.panel{background:var(--panel);border:1px solid var(--border);border-radius:4px;}
+/* ── Section label ── */
+.sec-label{font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;font-family:var(--font-mono);}
 
-/* ── Stat gauge ── */
-.gauge{
-  background:var(--bg2);
-  border:1px solid var(--border);
-  border-radius:4px;
-  padding:16px 20px;
-  position:relative;
-  overflow:hidden;
-}
-.gauge::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:2px;
-}
-.gauge-amber::before{background:linear-gradient(90deg,transparent,var(--amber),transparent);}
-.gauge-green::before{background:linear-gradient(90deg,transparent,var(--green),transparent);}
-.gauge-red::before{background:linear-gradient(90deg,transparent,var(--red),transparent);}
-.gauge-blue::before{background:linear-gradient(90deg,transparent,var(--blue),transparent);}
+/* ── Micro pill (change tag) ── */
+.change-tag{font-size:10px;font-weight:700;font-family:var(--font-mono);padding:2px 7px;border-radius:4px;border:1px solid;}
 
 /* ── Overlay ── */
-.overlay{position:fixed;inset:0;background:rgba(4,7,14,0.88);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);}
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,0.4);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useCallback, useRef } = React;
+const { useState, useEffect, useCallback } = React;
 
-/* ════════════════════════════════════════════
-   CONSTANTS
-════════════════════════════════════════════ */
+/* ════ CONSTANTS ════════════════════════════════════════════════ */
 const ENVS = ["DEV","QA","DEV2","QA2","PROD"];
 const ENV_META = {
-  DEV:  {label:"DEV",  sub:"Feature Branch",   color:"#4488ff", dim:"#0a1a44"},
-  QA:   {label:"QA",   sub:"Feature Testing",  color:"#aa66ff", dim:"#1a0a44"},
-  DEV2: {label:"DEV2", sub:"Prod Base",         color:"#f0a500", dim:"#3a2800"},
-  QA2:  {label:"QA2",  sub:"Hotfix Valid.",     color:"#ff7722", dim:"#3a1800"},
-  PROD: {label:"PROD", sub:"Production",        color:"#00e676", dim:"#003a1a"},
+  DEV:  {label:"DEV",  sub:"Feature Branch",   color:"#2563eb", bg:"#eff6ff", border:"#bfdbfe"},
+  QA:   {label:"QA",   sub:"Feature Testing",  color:"#7c3aed", bg:"#f5f3ff", border:"#ddd6fe"},
+  DEV2: {label:"DEV2", sub:"Prod Base",         color:"#d97706", bg:"#fffbeb", border:"#fde68a"},
+  QA2:  {label:"QA2",  sub:"Hotfix Valid.",     color:"#ea580c", bg:"#fff7ed", border:"#fed7aa"},
+  PROD: {label:"PROD", sub:"Production",        color:"#059669", bg:"#ecfdf5", border:"#a7f3d0"},
 };
 const STATUS_OPTIONS = ["Not Started","In Progress","Done","Blocked","Skipped"];
 const STATUS_CFG = {
-  "Not Started": {bg:"#080d18",text:"#3a506a",border:"#1a2540",icon:"◌"},
-  "In Progress": {bg:"#0a1a44",text:"#4488ff",border:"#1a3a88",icon:"▶"},
-  "Done":        {bg:"#003a1a",text:"#00e676",border:"#006633",icon:"✓"},
-  "Blocked":     {bg:"#2a0808",text:"#ff4444",border:"#661111",icon:"✕"},
-  "Skipped":     {bg:"#0d1020",text:"#3a506a",border:"#1a2540",icon:"—"},
+  "Not Started": {bg:"#f8fafc",text:"#94a3b8",border:"#e2e8f0",dot:"#cbd5e1"},
+  "In Progress": {bg:"#eff6ff",text:"#2563eb",border:"#bfdbfe",dot:"#2563eb"},
+  "Done":        {bg:"#ecfdf5",text:"#059669",border:"#a7f3d0",dot:"#059669"},
+  "Blocked":     {bg:"#fef2f2",text:"#dc2626",border:"#fecaca",dot:"#dc2626"},
+  "Skipped":     {bg:"#f8fafc",text:"#94a3b8",border:"#e2e8f0",dot:"#94a3b8"},
 };
 const TYPE_OPTIONS = ["Feature","Hotfix","Config","Release","Rollback"];
 const TYPE_CFG = {
-  Feature: {color:"#4488ff"},
-  Hotfix:  {color:"#f0a500"},
-  Config:  {color:"#aa66ff"},
-  Release: {color:"#00e676"},
-  Rollback:{color:"#ff4444"},
+  Feature: {bg:"#eff6ff",text:"#2563eb",border:"#bfdbfe"},
+  Hotfix:  {bg:"#fffbeb",text:"#d97706",border:"#fde68a"},
+  Config:  {bg:"#f5f3ff",text:"#7c3aed",border:"#ddd6fe"},
+  Release: {bg:"#ecfdf5",text:"#059669",border:"#a7f3d0"},
+  Rollback:{bg:"#fef2f2",text:"#dc2626",border:"#fecaca"},
 };
 const SQL_TYPES = [
-  {key:"insert",label:"INSERT",color:"#00e676"},
-  {key:"update",label:"UPDATE",color:"#4488ff"},
-  {key:"delete",label:"DELETE",color:"#ff4444"},
-  {key:"modify",label:"MODIFY",color:"#f0a500"},
-  {key:"view",  label:"VIEW",  color:"#aa66ff"},
-  {key:"materializedView",label:"MAT. VIEW",color:"#ff7722"},
+  {key:"insert",           label:"INSERT",          color:"#059669", bg:"#ecfdf5", border:"#a7f3d0"},
+  {key:"update",           label:"UPDATE",          color:"#2563eb", bg:"#eff6ff", border:"#bfdbfe"},
+  {key:"delete",           label:"DELETE",          color:"#dc2626", bg:"#fef2f2", border:"#fecaca"},
+  {key:"modify",           label:"MODIFY",          color:"#d97706", bg:"#fffbeb", border:"#fde68a"},
+  {key:"view",             label:"VIEW",            color:"#7c3aed", bg:"#f5f3ff", border:"#ddd6fe"},
+  {key:"materializedView", label:"MAT. VIEW",       color:"#ea580c", bg:"#fff7ed", border:"#fed7aa"},
 ];
-const PROMO_PATHS = {
-  feature:["DEV","QA","PROD"],
-  hotfix: ["DEV2","QA2","PROD","DEV","QA"],
-};
-const SCRIPT_URL_KEY = "env-tracker-script-url-v2";
+const PROMO_PATHS = {feature:["DEV","QA","PROD"], hotfix:["DEV2","QA2","PROD","DEV","QA"]};
+const SCRIPT_URL_KEY = "env-tracker-v3";
 const getTrack = i => (i.type==="Hotfix"||i.type==="Config")?"hotfix":"feature";
 const EMPTY_CHANGES = () => ({hasConfig:false,configDetails:"",hasCodeChange:false,codeDetails:"",hasSql:false,sqlTypes:[],sqlDetails:""});
 const EMPTY_STATUSES = () => ({DEV:"Not Started",QA:"Not Started",DEV2:"Not Started",QA2:"Not Started",PROD:"Not Started"});
 const EMPTY_ITEM = () => ({
   id: Date.now().toString(36)+Math.random().toString(36).slice(2),
   dropNumber:`D1-${new Date().getFullYear()}`,
+  versionLabel:"",
   ticket:"",title:"",type:"Feature",owner:"",priority:"Medium",
   notes:"",changes:EMPTY_CHANGES(),
+  microservices:[],
   createdAt:new Date().toISOString().slice(0,10),
   statuses:EMPTY_STATUSES(),
 });
+const PRIORITY_CFG = {
+  Critical:{bg:"#fef2f2",text:"#dc2626",border:"#fecaca"},
+  High:    {bg:"#fffbeb",text:"#d97706",border:"#fde68a"},
+  Medium:  {bg:"#eff6ff",text:"#2563eb",border:"#bfdbfe"},
+  Low:     {bg:"#f8fafc",text:"#64748b",border:"#e2e8f0"},
+};
 
-/* ════════════════════════════════════════════
-   API
-════════════════════════════════════════════ */
+/* ════ API ══════════════════════════════════════════════════════ */
 async function callApi(url,action,payload={}){
   const r = await fetch(url,{method:"POST",body:JSON.stringify({action,payload})});
   const j = await r.json();
@@ -255,188 +188,154 @@ async function callApi(url,action,payload={}){
   return j;
 }
 
-/* ════════════════════════════════════════════
-   EXCEL EXPORT
-════════════════════════════════════════════ */
-function exportToExcel(items){
+/* ════ EXCEL EXPORT ═════════════════════════════════════════════ */
+function exportToExcel(items, label="all"){
   const rows = items.map(i=>{
     const c = i.changes||{};
     const sqlOps = (c.sqlTypes||[]).map(k=>SQL_TYPES.find(t=>t.key===k)?.label||k).join(", ");
+    const svcList = (i.microservices||[]).map(s=>`${s.name} v${s.version}`).join("\n");
     return {
-      "Drop Number":      i.dropNumber||"",
-      "Ticket":           i.ticket||"",
-      "Title":            i.title||"",
-      "Type":             i.type||"",
-      "Track":            getTrack(i)==="feature"?"Feature":"Hotfix/Config",
-      "Owner":            i.owner||"",
-      "Priority":         i.priority||"",
-      "Created Date":     i.createdAt||"",
-      "DEV Status":       i.statuses?.DEV||"",
-      "QA Status":        i.statuses?.QA||"",
-      "DEV2 Status":      i.statuses?.DEV2||"",
-      "QA2 Status":       i.statuses?.QA2||"",
-      "PROD Status":      i.statuses?.PROD||"",
-      "Config Changes":   c.hasConfig  ?"YES":"NO",
-      "Config Details":   c.configDetails||"",
-      "Code Change":      c.hasCodeChange?"YES":"NO",
-      "Code Details":     c.codeDetails||"",
-      "SQL/DB Change":    c.hasSql     ?"YES":"NO",
-      "SQL Operations":   sqlOps,
-      "SQL Details":      c.sqlDetails||"",
-      "Notes":            i.notes||"",
+      "Drop Number":i.dropNumber||"","Version Label":i.versionLabel||"","Ticket":i.ticket||"",
+      "Title":i.title||"","Type":i.type||"","Track":getTrack(i)==="feature"?"Feature":"Hotfix/Config",
+      "Owner":i.owner||"","Priority":i.priority||"","Created":i.createdAt||"",
+      "Microservices":svcList,
+      "DEV":i.statuses?.DEV||"","QA":i.statuses?.QA||"",
+      "DEV2":i.statuses?.DEV2||"","QA2":i.statuses?.QA2||"","PROD":i.statuses?.PROD||"",
+      "Config Change":c.hasConfig?"YES":"NO","Config Details":c.configDetails||"",
+      "Code Change":c.hasCodeChange?"YES":"NO","Code Details":c.codeDetails||"",
+      "SQL/DB Change":c.hasSql?"YES":"NO","SQL Operations":sqlOps,"SQL Details":c.sqlDetails||"",
+      "Notes":i.notes||"",
     };
   });
-
   const ws = XLSX.utils.json_to_sheet(rows);
-
-  // Column widths
-  ws["!cols"] = [
-    {wch:12},{wch:14},{wch:40},{wch:10},{wch:14},{wch:16},{wch:10},{wch:14},
+  ws["!cols"]=[
+    {wch:12},{wch:14},{wch:14},{wch:38},{wch:10},{wch:14},
+    {wch:14},{wch:10},{wch:12},{wch:28},
     {wch:14},{wch:14},{wch:14},{wch:14},{wch:14},
-    {wch:14},{wch:30},{wch:14},{wch:30},{wch:14},{wch:22},{wch:30},{wch:40},
+    {wch:12},{wch:30},{wch:12},{wch:30},{wch:12},{wch:22},{wch:30},{wch:38},
   ];
-
-  // Header style — bold amber
-  const headerRange = XLSX.utils.decode_range(ws["!ref"]);
-  for(let C=headerRange.s.c;C<=headerRange.e.c;C++){
-    const addr = XLSX.utils.encode_cell({r:0,c:C});
-    if(!ws[addr]) continue;
-    ws[addr].s = {
-      font:{bold:true,color:{rgb:"F0A500"},sz:11},
-      fill:{fgColor:{rgb:"0A1020"}},
-      border:{bottom:{style:"thin",color:{rgb:"F0A500"}}},
-      alignment:{horizontal:"center"},
-    };
+  // Style headers
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  for(let C=range.s.c;C<=range.e.c;C++){
+    const a=XLSX.utils.encode_cell({r:0,c:C});
+    if(!ws[a])continue;
+    ws[a].s={font:{bold:true,color:{rgb:"1E3A5F"},sz:11},fill:{fgColor:{rgb:"EFF6FF"}},alignment:{horizontal:"center",wrapText:true}};
   }
-
-  // Status color coding
-  const statusColors = {
-    "Done":        "00E676",
-    "In Progress": "4488FF",
-    "Blocked":     "FF4444",
-    "Skipped":     "6A85A8",
-    "Not Started": "3A506A",
-  };
-  const statusCols = [8,9,10,11,12]; // DEV,QA,DEV2,QA2,PROD col indices
+  // Status colors
+  const statusHex={"Done":"059669","In Progress":"2563EB","Blocked":"DC2626","Skipped":"94A3B8","Not Started":"CBD5E1"};
+  const statusCols=[10,11,12,13,14];
   for(let R=1;R<=rows.length;R++){
     statusCols.forEach(C=>{
-      const addr = XLSX.utils.encode_cell({r:R,c:C});
-      if(!ws[addr]) return;
-      const val = ws[addr].v;
-      const col = statusColors[val]||"3A506A";
-      ws[addr].s = {
-        font:{color:{rgb:col},bold:true,sz:10},
-        alignment:{horizontal:"center"},
-      };
+      const a=XLSX.utils.encode_cell({r:R,c:C});
+      if(!ws[a])return;
+      const col=statusHex[ws[a].v]||"CBD5E1";
+      ws[a].s={font:{color:{rgb:col},bold:true,sz:10},alignment:{horizontal:"center"}};
     });
-    // Alternating row bg
-    for(let C=headerRange.s.c;C<=headerRange.e.c;C++){
-      const addr = XLSX.utils.encode_cell({r:R,c:C});
-      if(!ws[addr]){ws[addr]={t:"s",v:""};} 
-      if(!ws[addr].s) ws[addr].s={};
-      ws[addr].s.fill = {fgColor:{rgb: R%2===0?"080D18":"0A1020"}};
-      if(!ws[addr].s.font) ws[addr].s.font={};
-      ws[addr].s.font.sz=10;
-      ws[addr].s.alignment={wrapText:true,vertical:"top"};
+    for(let C=range.s.c;C<=range.e.c;C++){
+      const a=XLSX.utils.encode_cell({r:R,c:C});
+      if(!ws[a]){ws[a]={t:"s",v:""};} 
+      if(!ws[a].s)ws[a].s={};
+      ws[a].s.fill={fgColor:{rgb:R%2===0?"F0F4F8":"FFFFFF"}};
+      if(!ws[a].s.font)ws[a].s.font={};
+      ws[a].s.font.sz=10;
+      ws[a].s.alignment={wrapText:true,vertical:"top"};
     }
   }
-
   // Summary sheet
-  const envOrder = ["DEV","QA","DEV2","QA2","PROD"];
-  const summaryRows = [["Environment","Total","Done","In Progress","Blocked","Not Started","Skipped","% Complete"]];
-  envOrder.forEach(env=>{
-    const relevant = items.filter(i=>{
-      const t=getTrack(i);
-      if(env==="PROD") return true;
-      if(t==="hotfix") return true;
-      return ["DEV","QA"].includes(env);
-    });
-    const done = relevant.filter(i=>i.statuses[env]==="Done").length;
-    const inP  = relevant.filter(i=>i.statuses[env]==="In Progress").length;
-    const blk  = relevant.filter(i=>i.statuses[env]==="Blocked").length;
-    const ns   = relevant.filter(i=>i.statuses[env]==="Not Started").length;
-    const sk   = relevant.filter(i=>i.statuses[env]==="Skipped").length;
-    const pct  = relevant.length?Math.round((done/relevant.length)*100):0;
-    summaryRows.push([env,relevant.length,done,inP,blk,ns,sk,pct+"%"]);
+  const sumRows=[["Environment","Role","Total","Done","In Progress","Blocked","Not Started","% Done"]];
+  ENVS.forEach(env=>{
+    const rel=items.filter(i=>{const t=getTrack(i);if(env==="PROD")return true;if(t==="hotfix")return true;return["DEV","QA"].includes(env);});
+    const done=rel.filter(i=>i.statuses[env]==="Done").length;
+    const inP =rel.filter(i=>i.statuses[env]==="In Progress").length;
+    const blk =rel.filter(i=>i.statuses[env]==="Blocked").length;
+    const ns  =rel.filter(i=>i.statuses[env]==="Not Started").length;
+    const pct =rel.length?Math.round((done/rel.length)*100):0;
+    sumRows.push([env,ENV_META[env].sub,rel.length,done,inP,blk,ns,pct+"%"]);
   });
-  const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-  wsSummary["!cols"]=[{wch:14},{wch:8},{wch:8},{wch:14},{wch:10},{wch:14},{wch:10},{wch:12}];
-
-  const wb = XLSX.utils.book_new();
+  const wsSummary=XLSX.utils.aoa_to_sheet(sumRows);
+  wsSummary["!cols"]=[{wch:10},{wch:20},{wch:8},{wch:8},{wch:14},{wch:10},{wch:14},{wch:10}];
+  // Services sheet
+  const svcRows=[["Drop","Version Label","Ticket","Title","Service Name","Service Version"]];
+  items.forEach(i=>{
+    (i.microservices||[]).forEach(s=>{
+      svcRows.push([i.dropNumber||"",i.versionLabel||"",i.ticket||"",i.title||"",s.name||"",s.version||""]);
+    });
+  });
+  const wsSvc=XLSX.utils.aoa_to_sheet(svcRows);
+  wsSvc["!cols"]=[{wch:12},{wch:14},{wch:14},{wch:36},{wch:28},{wch:16}];
+  const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,"Activities");
   XLSX.utils.book_append_sheet(wb,wsSummary,"Summary");
-
-  const ts = new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb,`env-tracker-${ts}.xlsx`);
+  XLSX.utils.book_append_sheet(wb,wsSvc,"Microservices");
+  const ts=new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb,`env-tracker-${label}-${ts}.xlsx`);
 }
 
-/* ════════════════════════════════════════════
-   ATOMS
-════════════════════════════════════════════ */
+/* ════ ATOMS ════════════════════════════════════════════════════ */
 function Spinner({size=14}){
-  return <span style={{display:"inline-block",width:size,height:size,border:"1.5px solid #1a2540",borderTopColor:"var(--amber)",borderRadius:"50%",animation:"spin 0.7s linear infinite",flexShrink:0}}/>;
+  return <span style={{display:"inline-block",width:size,height:size,border:"2px solid #e2e8f0",borderTopColor:"var(--blue)",borderRadius:"50%",animation:"spin 0.7s linear infinite",flexShrink:0}}/>;
 }
-
 function LiveDot(){
-  return <span style={{display:"inline-block",width:6,height:6,borderRadius:"50%",background:"var(--green)",boxShadow:"0 0 6px var(--green)",animation:"glow 2s ease-in-out infinite",flexShrink:0}}/>;
+  return <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"var(--green)",animation:"pulse-dot 2s ease-in-out infinite",flexShrink:0}}/>;
 }
-
-function SectionLabel({children,style={}}){
-  return <div style={{fontFamily:"var(--font-mono)",fontSize:9,fontWeight:700,letterSpacing:"0.14em",textTransform:"uppercase",color:"var(--text3)",marginBottom:8,...style}}>{children}</div>;
+function Chip({children,color="blue",size=11}){
+  const t={"blue":{bg:"#eff6ff",text:"#2563eb",border:"#bfdbfe"},"green":{bg:"#ecfdf5",text:"#059669",border:"#a7f3d0"},"amber":{bg:"#fffbeb",text:"#d97706",border:"#fde68a"},"red":{bg:"#fef2f2",text:"#dc2626",border:"#fecaca"},"purple":{bg:"#f5f3ff",text:"#7c3aed",border:"#ddd6fe"},"gray":{bg:"#f8fafc",text:"#64748b",border:"#e2e8f0"},"orange":{bg:"#fff7ed",text:"#ea580c",border:"#fed7aa"}}[color]||{bg:"#eff6ff",text:"#2563eb",border:"#bfdbfe"};
+  return <span style={{display:"inline-flex",alignItems:"center",padding:"2px 8px",borderRadius:20,fontSize:size,fontWeight:600,background:t.bg,color:t.text,border:`1px solid ${t.border}`,fontFamily:"var(--font-mono)",whiteSpace:"nowrap"}}>{children}</span>;
 }
-
+function StatusBadge({value}){
+  const c=STATUS_CFG[value]||STATUS_CFG["Not Started"];
+  return <span className="status-pill" style={{background:c.bg,color:c.text,borderColor:c.border}}>
+    <span style={{width:5,height:5,borderRadius:"50%",background:c.dot,display:"inline-block",flexShrink:0}}/>
+    {value}
+  </span>;
+}
 function StatusSelect({value,onChange,disabled}){
-  const c = STATUS_CFG[value]||STATUS_CFG["Not Started"];
+  const c=STATUS_CFG[value]||STATUS_CFG["Not Started"];
   return (
     <select value={value} onChange={e=>onChange(e.target.value)} disabled={disabled} style={{
-      background:c.bg, color:c.text, border:`1px solid ${c.border}`,
-      borderRadius:2, padding:"3px 7px", fontSize:10, fontWeight:700,
-      fontFamily:"var(--font-mono)", cursor:disabled?"not-allowed":"pointer",
-      width:"100%", outline:"none", opacity:disabled?0.25:1, letterSpacing:"0.04em",
+      background:c.bg,color:c.text,border:`1.5px solid ${c.border}`,
+      borderRadius:6,padding:"4px 8px",fontSize:11,fontWeight:600,
+      fontFamily:"var(--font-mono)",cursor:disabled?"not-allowed":"pointer",
+      width:"100%",outline:"none",opacity:disabled?0.35:1,
     }}>
-      {STATUS_OPTIONS.map(o=><option key={o} value={o}>{c.icon} {o}</option>)}
+      {STATUS_OPTIONS.map(o=><option key={o} value={o}>{o}</option>)}
     </select>
   );
 }
 
-function Toggle({checked,onChange,label,color="var(--amber)"}){
+/* Toggle — fixed: uses direct value, not functional updater */
+function Toggle({checked,onChange,label,accent="#2563eb"}){
   return (
     <div className="toggle-wrap" onClick={()=>onChange(!checked)}>
-      <div className="toggle-track" style={{background:checked?color+"22":"var(--bg2)",border:`1px solid ${checked?color+"55":"var(--border2)"}`}}>
-        <div className="toggle-thumb" style={{left:checked?20:2,background:checked?color:"var(--text3)"}}/>
+      <div className="toggle-track" style={{
+        background:checked?accent+"18":"#f1f5f9",
+        borderColor:checked?accent+"55":"#e2e8f0",
+      }}>
+        <div className="toggle-thumb" style={{left:checked?22:2,background:checked?accent:"#94a3b8"}}/>
       </div>
-      <span style={{fontSize:12,color:checked?"var(--text)":"var(--text2)",fontFamily:"var(--font-mono)",fontWeight:checked?500:400}}>{label}</span>
+      <span style={{fontSize:13,color:checked?accent:"var(--text2)",fontWeight:checked?600:400,userSelect:"none"}}>{label}</span>
     </div>
   );
 }
 
-/* ════════════════════════════════════════════
-   CIRCUIT PROMO BAR
-════════════════════════════════════════════ */
-function CircuitBar({item}){
-  const track = getTrack(item);
-  const path  = PROMO_PATHS[track];
+/* ════ PROMO PATH BAR ═══════════════════════════════════════════ */
+function PromoBar({item}){
+  const track=getTrack(item), path=PROMO_PATHS[track];
   return (
-    <div style={{display:"flex",alignItems:"center",gap:0,flexWrap:"nowrap"}}>
+    <div style={{display:"flex",alignItems:"center",gap:3,flexWrap:"nowrap"}}>
       {path.map((env,i)=>{
-        const em  = ENV_META[env];
-        const sc  = STATUS_CFG[item.statuses[env]]||STATUS_CFG["Not Started"];
-        const icon= sc.icon;
-        const isReturn = i===3 && track==="hotfix";
+        const em=ENV_META[env], sc=STATUS_CFG[item.statuses[env]]||STATUS_CFG["Not Started"];
+        const isReturn=track==="hotfix"&&i===3;
         return (
           <React.Fragment key={env}>
-            {isReturn && (
-              <span style={{color:"var(--amber)",fontSize:9,margin:"0 3px",fontWeight:700}}>↺</span>
-            )}
-            <div className="status-node" style={{background:sc.bg,color:sc.text,borderColor:sc.border}}>
-              <span style={{color:em.color,fontSize:8,fontWeight:800}}>{env}</span>
-              <span style={{fontSize:9}}>{icon}</span>
+            {isReturn&&<span style={{color:"#d97706",fontSize:10,margin:"0 1px",fontWeight:700}}>↺</span>}
+            <div style={{display:"inline-flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:10,
+              background:sc.bg,border:`1.5px solid ${sc.border}`,fontSize:9,fontWeight:700,fontFamily:"var(--font-mono)"}}>
+              <span style={{color:em.color}}>{env}</span>
+              <span style={{color:sc.text}}>{{"Done":"✓","Blocked":"✕","In Progress":"▶","Skipped":"—"}[item.statuses[env]]||"○"}</span>
             </div>
-            {i<path.length-1 && !isReturn && (
-              <svg width="16" height="8" style={{flexShrink:0}}>
-                <line x1="0" y1="4" x2="14" y2="4" stroke={sc.text==="var(--text3)"||sc.text==="#3a506a"?"#1a2540":sc.text} strokeWidth="1" strokeDasharray={sc.icon==="✓"?"":"3,2"}/>
-                <circle cx="14" cy="4" r="1.5" fill={sc.icon==="✓"?sc.text:"#1a2540"}/>
-              </svg>
+            {i<path.length-1&&!isReturn&&(
+              <span style={{color:"#cbd5e1",fontSize:10,flexShrink:0}}>→</span>
             )}
           </React.Fragment>
         );
@@ -445,101 +344,178 @@ function CircuitBar({item}){
   );
 }
 
-/* ════════════════════════════════════════════
-   CHANGES SECTION
-════════════════════════════════════════════ */
-function ChangesSection({changes,setChanges}){
-  const set=(k,v)=>setChanges(c=>({...c,[k]:v}));
-  const toggleSql=k=>{
-    const cur=changes.sqlTypes||[];
-    set("sqlTypes",cur.includes(k)?cur.filter(x=>x!==k):[...cur,k]);
-  };
-
-  const block=(title,color,isOn,onToggle,children)=>(
-    <div style={{background:"var(--bg2)",border:`1px solid ${isOn?color+"44":"var(--border)"}`,borderRadius:3,marginBottom:10,overflow:"hidden",transition:"border-color 0.2s"}}>
-      <div style={{padding:"10px 14px",borderBottom:isOn?"1px solid var(--border)":"none"}}>
-        <Toggle checked={isOn} onChange={onToggle} label={title} color={color}/>
+/* ════ STAT CARD ════════════════════════════════════════════════ */
+function StatCard({label,value,total,accent,icon}){
+  const pct=total?Math.round((value/total)*100):0;
+  return (
+    <div className="card" style={{padding:"18px 20px",borderTop:`3px solid ${accent}`}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+        <div style={{fontSize:11,fontWeight:600,color:"var(--text3)",textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</div>
+        <span style={{fontSize:16}}>{icon}</span>
       </div>
-      {isOn&&<div style={{padding:"12px 14px"}}>{children}</div>}
+      <div style={{fontSize:32,fontWeight:800,color:"var(--text)",lineHeight:1,marginBottom:10,fontFamily:"var(--font-mono)"}}>{value}</div>
+      <div style={{height:4,background:"#f1f5f9",borderRadius:2,overflow:"hidden"}}>
+        <div style={{height:"100%",width:`${pct}%`,background:accent,borderRadius:2,transition:"width 0.5s"}}/>
+      </div>
+      <div style={{fontSize:10,color:"var(--text3)",marginTop:5,fontFamily:"var(--font-mono)"}}>{pct}% of total</div>
     </div>
   );
+}
+
+/* ════ CHANGES SECTION ══════════════════════════════════════════ */
+/* FIX: use direct object spread instead of functional updater in setChanges */
+function ChangesSection({changes,setChanges}){
+  const set=(k,v)=>setChanges({...changes,[k]:v});
+  const toggleSql=(k)=>{
+    const cur=changes.sqlTypes||[];
+    const next=cur.includes(k)?cur.filter(x=>x!==k):[...cur,k];
+    setChanges({...changes,sqlTypes:next});
+  };
+
+  const block=(key,label,accent,color,children)=>{
+    const on=changes[key];
+    return (
+      <div style={{background:on?color+"08":"#fafbfc",border:`1.5px solid ${on?color+"30":"#e2e8f0"}`,borderRadius:10,marginBottom:10,overflow:"hidden",transition:"all 0.2s"}}>
+        <div style={{padding:"12px 16px",borderBottom:on?"1px solid #f1f5f9":"none",background:on?color+"05":"transparent"}}>
+          <Toggle checked={on} onChange={v=>set(key,v)} label={label} accent={color}/>
+        </div>
+        {on&&<div style={{padding:"14px 16px"}}>{children}</div>}
+      </div>
+    );
+  };
 
   return (
     <div>
-      {block("Config Changes","var(--purple)",changes.hasConfig,v=>set("hasConfig",v),
-        <textarea className="inp" value={changes.configDetails} onChange={e=>set("configDetails",e.target.value)}
-          placeholder={"Config keys / values changed\nFeature toggles, env flags, external endpoints…"}
-          rows={3} style={{resize:"vertical",fontSize:11,lineHeight:1.7}}/>
+      {block("hasConfig","Config Changes","#7c3aed","#7c3aed",
+        <textarea className="inp" value={changes.configDetails||""} onChange={e=>set("configDetails",e.target.value)}
+          placeholder={"Config keys/values changed&#10;Feature flags, env-specific settings, external endpoints…"}
+          rows={3} style={{resize:"vertical",fontSize:12,lineHeight:1.7}}/>
       )}
-      {block("Code Change","var(--blue)",changes.hasCodeChange,v=>set("hasCodeChange",v),
-        <textarea className="inp" value={changes.codeDetails} onChange={e=>set("codeDetails",e.target.value)}
-          placeholder={"Modules / services changed\nPR links, branch names, deployment steps…"}
-          rows={3} style={{resize:"vertical",fontSize:11,lineHeight:1.7}}/>
+      {block("hasCodeChange","Code Change","#2563eb","#2563eb",
+        <textarea className="inp" value={changes.codeDetails||""} onChange={e=>set("codeDetails",e.target.value)}
+          placeholder={"Modules/services changed&#10;PR links, branch names, deployment steps…"}
+          rows={3} style={{resize:"vertical",fontSize:12,lineHeight:1.7}}/>
       )}
-      {block("SQL / DB Changes","var(--green)",changes.hasSql,v=>set("hasSql",v),
+      {block("hasSql","SQL / DB Changes","#059669","#059669",
         <div>
-          <SectionLabel>Operation Types</SectionLabel>
-          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
+          <div className="sec-label">Operation Types</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:14}}>
             {SQL_TYPES.map(t=>{
               const on=(changes.sqlTypes||[]).includes(t.key);
               return (
                 <div key={t.key} className="sql-chip" onClick={()=>toggleSql(t.key)} style={{
-                  background:on?t.color+"18":"transparent",
-                  color:on?t.color:"var(--text3)",
-                  borderColor:on?t.color+"55":"var(--border2)",
-                  boxShadow:on?`0 0 10px ${t.color}22`:"none",
+                  background:on?t.bg:"#fff",color:on?t.color:"#94a3b8",
+                  borderColor:on?t.border:"#e2e8f0",
+                  boxShadow:on?`0 2px 6px ${t.color}20`:"none",
                 }}>
-                  {on&&"✓ "}{t.label}
+                  {on&&<span style={{fontSize:9}}>✓</span>}
+                  {t.label}
                 </div>
               );
             })}
           </div>
-          <SectionLabel>Query / Change Details</SectionLabel>
-          <textarea className="inp" value={changes.sqlDetails} onChange={e=>set("sqlDetails",e.target.value)}
-            placeholder={"• Table names affected\n• Script filenames\n• Rollback plan\n• Sequence / trigger / view changes"}
-            rows={4} style={{resize:"vertical",fontSize:11,lineHeight:1.7}}/>
+          <div className="sec-label">Query / Change Details</div>
+          <textarea className="inp" value={changes.sqlDetails||""} onChange={e=>set("sqlDetails",e.target.value)}
+            placeholder={"• Tables affected&#10;• Script filenames&#10;• Rollback plan&#10;• Triggers / sequences / views"}
+            rows={4} style={{resize:"vertical",fontSize:12,lineHeight:1.7}}/>
         </div>
       )}
     </div>
   );
 }
 
-/* ════════════════════════════════════════════
-   CONFIRM DELETE MODAL
-════════════════════════════════════════════ */
+/* ════ MICROSERVICES SECTION ════════════════════════════════════ */
+function MicroservicesSection({services,setServices}){
+  const add=()=>setServices([...services,{id:Date.now().toString(36),name:"",version:""}]);
+  const del=(id)=>setServices(services.filter(s=>s.id!==id));
+  const upd=(id,k,v)=>setServices(services.map(s=>s.id===id?{...s,[k]:v}:s));
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{fontSize:12,color:"var(--text2)",lineHeight:1.6}}>
+          Add each microservice and its version deployed in this activity.
+        </div>
+        <button className="btn btn-blue" onClick={add} style={{fontSize:11,padding:"6px 12px",flexShrink:0}}>
+          + Add Service
+        </button>
+      </div>
+
+      {services.length===0&&(
+        <div style={{textAlign:"center",padding:"28px 0",color:"var(--text3)",fontSize:12,border:"2px dashed #e2e8f0",borderRadius:10}}>
+          No microservices added yet.<br/>
+          <span style={{fontSize:11}}>Click "+ Add Service" to track a service version.</span>
+        </div>
+      )}
+
+      {services.map((svc,i)=>(
+        <div key={svc.id} style={{display:"grid",gridTemplateColumns:"1fr 160px auto",gap:10,marginBottom:8,alignItems:"center"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:3}}>
+            {i===0&&<div className="sec-label">Service Name</div>}
+            <input className="inp" value={svc.name} onChange={e=>upd(svc.id,"name",e.target.value)} placeholder="e.g. auth-service, api-gateway"/>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:3}}>
+            {i===0&&<div className="sec-label">Version</div>}
+            <input className="inp" value={svc.version} onChange={e=>upd(svc.id,"version",e.target.value)} placeholder="e.g. 2.4.1"/>
+          </div>
+          <div style={{paddingTop:i===0?20:0}}>
+            <button onClick={()=>del(svc.id)} style={{background:"none",border:"none",color:"var(--text3)",cursor:"pointer",fontSize:16,padding:"6px 8px",borderRadius:6,transition:"all 0.15s"}}
+              onMouseOver={e=>e.target.style.color="#dc2626"} onMouseOut={e=>e.target.style.color="var(--text3)"}>
+              ✕
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {services.length>0&&(
+        <div style={{marginTop:12,padding:"10px 14px",background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0"}}>
+          <div className="sec-label" style={{marginBottom:6}}>Version Summary</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {services.filter(s=>s.name).map(s=>(
+              <span key={s.id} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 10px",background:"#fff",border:"1px solid #e2e8f0",borderRadius:20,fontSize:11,fontFamily:"var(--font-mono)"}}>
+                <span style={{color:"var(--text2)",fontWeight:600}}>{s.name}</span>
+                {s.version&&<><span style={{color:"#cbd5e1"}}>@</span><span style={{color:"var(--blue)",fontWeight:700}}>{s.version}</span></>}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ════ CONFIRM DELETE ═══════════════════════════════════════════ */
 function ConfirmDelete({title,onConfirm,onCancel}){
   return (
     <div className="overlay" style={{zIndex:200}} onClick={e=>e.target===e.currentTarget&&onCancel()}>
-      <div className="slide-up panel" style={{maxWidth:420,width:"100%",padding:32,border:"1px solid rgba(255,68,68,0.3)",boxShadow:"0 0 60px rgba(255,68,68,0.1)"}}>
-        <div style={{textAlign:"center",marginBottom:28}}>
-          <div style={{fontSize:32,marginBottom:14,filter:"drop-shadow(0 0 12px rgba(255,68,68,0.6))"}}>⚠</div>
-          <div style={{fontFamily:"var(--font-head)",fontSize:26,letterSpacing:"0.08em",color:"var(--red)",marginBottom:10}}>CONFIRM DELETION</div>
-          <div style={{color:"var(--text2)",fontSize:12,lineHeight:1.7,marginBottom:14}}>This action is permanent and cannot be undone.</div>
-          <div style={{background:"rgba(255,68,68,0.06)",border:"1px solid rgba(255,68,68,0.2)",borderRadius:3,padding:"10px 16px",color:"#ff8888",fontFamily:"var(--font-mono)",fontSize:12}}>
+      <div className="scale-in" style={{maxWidth:420,width:"100%",background:"#fff",borderRadius:16,padding:32,boxShadow:"0 20px 60px rgba(220,38,38,0.12), 0 4px 16px rgba(0,0,0,0.08)",border:"1.5px solid #fecaca"}}>
+        <div style={{textAlign:"center",marginBottom:24}}>
+          <div style={{width:52,height:52,borderRadius:"50%",background:"#fef2f2",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",fontSize:22,border:"2px solid #fecaca"}}>⚠️</div>
+          <div style={{fontSize:18,fontWeight:800,color:"var(--text)",marginBottom:8}}>Confirm Deletion</div>
+          <div style={{color:"var(--text2)",fontSize:13,lineHeight:1.6,marginBottom:12}}>This action is permanent and cannot be undone.</div>
+          <div style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:8,padding:"10px 14px",color:"#dc2626",fontSize:12,fontFamily:"var(--font-mono)",lineHeight:1.5}}>
             {title||"Untitled activity"}
           </div>
         </div>
         <div style={{display:"flex",gap:10}}>
-          <button className="btn btn-ghost" onClick={onCancel} style={{flex:1}}>CANCEL</button>
-          <button className="btn btn-red"   onClick={onConfirm} style={{flex:1,fontWeight:700}}>DELETE RECORD</button>
+          <button className="btn btn-ghost" onClick={onCancel} style={{flex:1,justifyContent:"center"}}>Cancel</button>
+          <button className="btn btn-red"   onClick={onConfirm} style={{flex:1,justifyContent:"center",fontWeight:700}}>Yes, Delete</button>
         </div>
       </div>
     </div>
   );
 }
 
-/* ════════════════════════════════════════════
-   ITEM MODAL
-════════════════════════════════════════════ */
+/* ════ ITEM MODAL ═══════════════════════════════════════════════ */
 function ItemModal({item,onSave,onClose,onDelete,saving}){
-  const [draft,  setDraft]   = useState({...item,statuses:{...item.statuses},changes:{...EMPTY_CHANGES(),...(item.changes||{})}});
-  const [tab,    setTab]     = useState("details");
-  const [delConf,setDelConf] = useState(false);
-  const set = (k,v)=>setDraft(d=>({...d,[k]:v}));
-  const track = getTrack(draft);
-  const envEnabled = env=>track==="hotfix"?true:(env==="PROD"||["DEV","QA"].includes(env));
-
+  const [draft,setDraft]=useState({...item,statuses:{...item.statuses},changes:{...EMPTY_CHANGES(),...(item.changes||{})},microservices:[...(item.microservices||[])]});
+  const [tab,setTab]=useState("details");
+  const [delConf,setDelConf]=useState(false);
+  const set=(k,v)=>setDraft(d=>({...d,[k]:v}));
+  const track=getTrack(draft);
+  const envEnabled=env=>track==="hotfix"?true:(env==="PROD"||["DEV","QA"].includes(env));
   const changeCount=[draft.changes.hasConfig,draft.changes.hasCodeChange,draft.changes.hasSql].filter(Boolean).length;
+  const svcCount=(draft.microservices||[]).filter(s=>s.name).length;
 
   useEffect(()=>{
     const h=e=>e.key==="Escape"&&onClose();
@@ -548,106 +524,109 @@ function ItemModal({item,onSave,onClose,onDelete,saving}){
   },[]);
 
   const TABS=[
-    {key:"details",label:"Details"},
-    {key:"changes",label:`Changes${changeCount?` [${changeCount}]`:""}` },
-    {key:"envs",   label:"Environments"},
+    {key:"details",  label:"Details"},
+    {key:"changes",  label:`Changes${changeCount?` (${changeCount})`:""}` },
+    {key:"services", label:`Microservices${svcCount?` (${svcCount})`:""}`},
+    {key:"envs",     label:"Environments"},
   ];
 
   return (
     <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div className="slide-down" style={{
-        background:"var(--bg)",border:"1px solid var(--border2)",borderRadius:4,
-        width:"100%",maxWidth:720,maxHeight:"92vh",
-        display:"flex",flexDirection:"column",
-        boxShadow:"0 0 80px rgba(0,0,0,0.8), 0 0 40px rgba(240,165,0,0.04)",
+        background:"#fff",borderRadius:16,width:"100%",maxWidth:740,maxHeight:"92vh",
+        display:"flex",flexDirection:"column",boxShadow:"var(--shadow-lg)",border:"1.5px solid var(--border)",
       }}>
-        {/* Top bar */}
-        <div style={{padding:"16px 24px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0,background:"var(--bg2)"}}>
-          <div>
-            <div style={{fontFamily:"var(--font-head)",fontSize:20,letterSpacing:"0.1em",color:"var(--amber)"}}>
-              {item.ticket?`EDIT · ${item.ticket}`:"NEW ACTIVITY"}
+        {/* Header */}
+        <div style={{padding:"20px 28px 0",flexShrink:0}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+            <div>
+              <div style={{fontSize:18,fontWeight:800,color:"var(--text)"}}>{item.ticket?`Edit — ${item.ticket}`:"New Activity"}</div>
+              {draft.dropNumber&&<div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
+                <Chip color="amber">{draft.dropNumber}</Chip>
+                {draft.versionLabel&&<Chip color="blue">{draft.versionLabel}</Chip>}
+              </div>}
             </div>
-            {draft.dropNumber&&<div style={{fontSize:10,color:"var(--text3)",marginTop:2,fontFamily:"var(--font-mono)"}}>{draft.dropNumber}</div>}
+            <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text3)",cursor:"pointer",fontSize:20,lineHeight:1,padding:4}}>✕</button>
           </div>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"var(--text3)",cursor:"pointer",fontSize:18,lineHeight:1,fontFamily:"var(--font-mono)"}}>✕</button>
-        </div>
-
-        {/* Tabs */}
-        <div style={{display:"flex",borderBottom:"1px solid var(--border)",flexShrink:0}}>
-          {TABS.map(t=><button key={t.key} className={`tab${tab===t.key?" active":""}`} onClick={()=>setTab(t.key)}>{t.label}</button>)}
+          <div style={{display:"flex",borderBottom:"1.5px solid var(--border)",gap:0,marginLeft:-4}}>
+            {TABS.map(t=><button key={t.key} className={`tab${tab===t.key?" active":""}`} onClick={()=>setTab(t.key)}>{t.label}</button>)}
+          </div>
         </div>
 
         {/* Body */}
-        <div style={{padding:"20px 24px",overflow:"auto",flex:1}}>
+        <div style={{padding:"22px 28px",overflow:"auto",flex:1}}>
 
           {tab==="details"&&(
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-              <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                <SectionLabel>Drop Number</SectionLabel>
-                <input className="inp" value={draft.dropNumber} onChange={e=>set("dropNumber",e.target.value)} placeholder="D1-2026"/>
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                <SectionLabel>Ticket / ID</SectionLabel>
-                <input className="inp" value={draft.ticket} onChange={e=>set("ticket",e.target.value)} placeholder="JIRA-1234 / ADO-5678"/>
-              </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+              {[
+                {l:"Drop Number",  k:"dropNumber",  ph:"D1-2026",        span:1},
+                {l:"Version Label",k:"versionLabel", ph:"v2.4.1 / Sprint-12", span:1},
+                {l:"Ticket / ID",  k:"ticket",       ph:"JIRA-1234",      span:1},
+                {l:"Owner",        k:"owner",         ph:"dev.name",       span:1},
+              ].map(({l,k,ph,span})=>(
+                <div key={k} style={{gridColumn:`span ${span}`,display:"flex",flexDirection:"column",gap:5}}>
+                  <div className="sec-label">{l}</div>
+                  <input className="inp" value={draft[k]||""} onChange={e=>set(k,e.target.value)} placeholder={ph}/>
+                </div>
+              ))}
               <div style={{gridColumn:"1/-1",display:"flex",flexDirection:"column",gap:5}}>
-                <SectionLabel>Title / Description</SectionLabel>
-                <input className="inp" value={draft.title} onChange={e=>set("title",e.target.value)} placeholder="Brief description of this activity"/>
+                <div className="sec-label">Title / Description</div>
+                <input className="inp" value={draft.title||""} onChange={e=>set("title",e.target.value)} placeholder="Brief description of this activity"/>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                <SectionLabel>Type</SectionLabel>
+                <div className="sec-label">Type</div>
                 <select className="inp" value={draft.type} onChange={e=>set("type",e.target.value)}>
                   {TYPE_OPTIONS.map(o=><option key={o}>{o}</option>)}
                 </select>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                <SectionLabel>Priority</SectionLabel>
+                <div className="sec-label">Priority</div>
                 <select className="inp" value={draft.priority} onChange={e=>set("priority",e.target.value)}>
                   {["Critical","High","Medium","Low"].map(o=><option key={o}>{o}</option>)}
                 </select>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                <SectionLabel>Owner</SectionLabel>
-                <input className="inp" value={draft.owner} onChange={e=>set("owner",e.target.value)} placeholder="dev.name"/>
+                <div className="sec-label">Date</div>
+                <input type="date" className="inp" value={draft.createdAt||""} onChange={e=>set("createdAt",e.target.value)}/>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:5}}>
-                <SectionLabel>Date</SectionLabel>
-                <input type="date" className="inp" value={draft.createdAt} onChange={e=>set("createdAt",e.target.value)}/>
+                <div className="sec-label">Track</div>
+                <input className="inp" value={track==="feature"?"Feature Track":"Hotfix / Config Track"} readOnly style={{background:"#f8fafc",color:"var(--text3)"}}/>
               </div>
               <div style={{gridColumn:"1/-1",display:"flex",flexDirection:"column",gap:5}}>
-                <SectionLabel>Notes</SectionLabel>
-                <textarea className="inp" value={draft.notes} onChange={e=>set("notes",e.target.value)} rows={3} placeholder="General notes, context, risks, rollback plan…" style={{resize:"vertical",lineHeight:1.7}}/>
+                <div className="sec-label">Notes</div>
+                <textarea className="inp" value={draft.notes||""} onChange={e=>set("notes",e.target.value)} rows={3} placeholder="General notes, context, risks, rollback plan…" style={{resize:"vertical",lineHeight:1.7}}/>
               </div>
             </div>
           )}
 
           {tab==="changes"&&(
-            <div>
-              <div style={{color:"var(--text2)",fontSize:11,marginBottom:16,lineHeight:1.7,fontFamily:"var(--font-mono)"}}>
-                Toggle each change type to expand and document details. These are exported with the activity.
-              </div>
-              <ChangesSection changes={draft.changes} setChanges={ch=>setDraft(d=>({...d,changes:ch}))}/>
-            </div>
+            <ChangesSection
+              changes={draft.changes}
+              setChanges={ch=>setDraft(d=>({...d,changes:ch}))}
+            />
+          )}
+
+          {tab==="services"&&(
+            <MicroservicesSection
+              services={draft.microservices||[]}
+              setServices={sv=>setDraft(d=>({...d,microservices:sv}))}
+            />
           )}
 
           {tab==="envs"&&(
             <div>
-              <div style={{color:"var(--amber)",fontSize:10,fontFamily:"var(--font-mono)",fontWeight:700,marginBottom:16,letterSpacing:"0.08em"}}>
-                {track==="feature"?"FEATURE TRACK:  DEV → QA → PROD":"HOTFIX/CONFIG:  DEV2 → QA2 → PROD  ↺  DEV → QA"}
+              <div style={{fontSize:12,fontWeight:600,color:track==="feature"?"var(--blue)":"var(--amber)",marginBottom:16,padding:"8px 12px",background:track==="feature"?"#eff6ff":"#fffbeb",borderRadius:8,border:`1px solid ${track==="feature"?"#bfdbfe":"#fde68a"}`}}>
+                {track==="feature"?"🔵 Feature Track: DEV → QA → PROD":"🟡 Hotfix/Config Track: DEV2 → QA2 → PROD  ↺  DEV → QA"}
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
                 {ENVS.map(env=>{
-                  const em=ENV_META[env];
-                  const enabled=envEnabled(env);
+                  const em=ENV_META[env], en=envEnabled(env);
                   return (
-                    <div key={env} style={{
-                      background:enabled?em.dim+"88":"var(--bg2)",
-                      border:`1px solid ${enabled?em.color+"44":"var(--border)"}`,
-                      borderRadius:3,padding:"12px 10px",opacity:enabled?1:0.3,
-                    }}>
-                      <div style={{color:em.color,fontFamily:"var(--font-mono)",fontWeight:800,fontSize:11,marginBottom:2,letterSpacing:"0.06em"}}>{em.label}</div>
-                      <div style={{color:"var(--text3)",fontSize:8,fontFamily:"var(--font-mono)",marginBottom:10,letterSpacing:"0.04em"}}>{em.sub}</div>
-                      <StatusSelect value={draft.statuses[env]} onChange={val=>setDraft(d=>({...d,statuses:{...d.statuses,[env]:val}}))} disabled={!enabled}/>
+                    <div key={env} style={{background:en?em.bg:"#fafbfc",border:`1.5px solid ${en?em.border:"#e2e8f0"}`,borderRadius:10,padding:"14px 12px",opacity:en?1:0.35}}>
+                      <div style={{color:em.color,fontFamily:"var(--font-mono)",fontWeight:700,fontSize:12,marginBottom:1}}>{em.label}</div>
+                      <div style={{color:"var(--text3)",fontSize:9,fontFamily:"var(--font-mono)",marginBottom:10}}>{em.sub}</div>
+                      <StatusSelect value={draft.statuses[env]} onChange={v=>setDraft(d=>({...d,statuses:{...d.statuses,[env]:v}}))} disabled={!en}/>
                     </div>
                   );
                 })}
@@ -657,14 +636,12 @@ function ItemModal({item,onSave,onClose,onDelete,saving}){
         </div>
 
         {/* Footer */}
-        <div style={{padding:"14px 24px",borderTop:"1px solid var(--border)",display:"flex",justifyContent:"space-between",gap:10,flexShrink:0,background:"var(--bg2)",flexWrap:"wrap"}}>
-          {onDelete?(
-            <button className="btn btn-red" onClick={()=>setDelConf(true)}>⊗ DELETE</button>
-          ):<div/>}
+        <div style={{padding:"14px 28px",borderTop:"1.5px solid var(--border)",display:"flex",justifyContent:"space-between",gap:10,flexShrink:0,flexWrap:"wrap",background:"#fafbfc",borderRadius:"0 0 16px 16px"}}>
+          {onDelete?<button className="btn btn-red" onClick={()=>setDelConf(true)}>🗑 Delete</button>:<div/>}
           <div style={{display:"flex",gap:10,marginLeft:"auto"}}>
-            <button className="btn btn-ghost" onClick={onClose}>CANCEL</button>
-            <button className="btn btn-amber" onClick={()=>onSave(draft)} disabled={saving} style={{display:"flex",alignItems:"center",gap:8,minWidth:130,justifyContent:"center"}}>
-              {saving?<><Spinner/> SAVING…</>:"⊕ SAVE RECORD"}
+            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn-blue" onClick={()=>onSave(draft)} disabled={saving} style={{minWidth:130,justifyContent:"center"}}>
+              {saving?<><Spinner/>Saving…</>:"Save Activity"}
             </button>
           </div>
         </div>
@@ -681,65 +658,54 @@ function ItemModal({item,onSave,onClose,onDelete,saving}){
   );
 }
 
-/* ════════════════════════════════════════════
-   SETUP SCREEN
-════════════════════════════════════════════ */
+/* ════ SETUP SCREEN ════════════════════════════════════════════ */
 function SetupScreen({onConnect}){
-  const [url,setUrl]=useState("");
-  const [busy,setBusy]=useState(false);
-  const [err,setErr]=useState("");
-
+  const [url,setUrl]=useState(""),  [busy,setBusy]=useState(false), [err,setErr]=useState("");
   const connect=async()=>{
-    if(!url.trim()){setErr("Script URL required.");return;}
+    if(!url.trim()){setErr("Script URL is required.");return;}
     setBusy(true);setErr("");
     try{
       const r=await fetch(url.trim()+"?action=getAll");
       const j=await r.json();
       if(j.ok!==undefined) onConnect(url.trim());
       else setErr("Unexpected response. Check deployment settings.");
-    }catch{setErr("Cannot reach the script. Verify the URL and try again.");}
+    }catch{setErr("Cannot reach the script. Verify URL and try again.");}
     setBusy(false);
   };
-
   const steps=[
-    {n:"01",t:"Create Google Sheet",    d:"sheets.google.com → New spreadsheet"},
-    {n:"02",t:"Open Apps Script",       d:"Extensions → Apps Script → clear existing code"},
-    {n:"03",t:"Paste Code.gs",          d:"Copy the provided Code.gs and paste it. Ctrl+S to save."},
-    {n:"04",t:"Deploy as Web App",      d:"Deploy → New Deployment → Web App · Execute as: Me · Access: Anyone · Authorize"},
-    {n:"05",t:"Copy the /exec URL",     d:"Paste the generated URL below"},
+    {n:1,t:"Create a Google Sheet",  d:"Go to sheets.google.com → New spreadsheet"},
+    {n:2,t:"Open Apps Script",        d:"Extensions → Apps Script → clear existing code"},
+    {n:3,t:"Paste Code.gs",           d:"Copy the provided Code.gs file and paste it. Press Ctrl+S."},
+    {n:4,t:"Deploy as Web App",       d:"Deploy → New Deployment → Web App · Execute as: Me · Access: Anyone · Authorize"},
+    {n:5,t:"Paste the URL",           d:"Copy the generated /exec URL and paste it below"},
   ];
-
   return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:24,position:"relative",zIndex:1}}>
-      <div className="slide-up" style={{maxWidth:560,width:"100%"}}>
-        {/* Header */}
-        <div style={{textAlign:"center",marginBottom:36}}>
-          <div style={{fontFamily:"var(--font-head)",fontSize:48,letterSpacing:"0.12em",color:"var(--amber)",lineHeight:1,marginBottom:6}}>ENV TRACKER</div>
-          <div style={{fontSize:11,color:"var(--text3)",letterSpacing:"0.2em",textTransform:"uppercase"}}>Mission Operations Console · Setup</div>
-        </div>
-
-        <div className="panel" style={{padding:32}}>
-          <div style={{marginBottom:24}}>
-            <div style={{fontFamily:"var(--font-head)",fontSize:18,letterSpacing:"0.1em",color:"var(--text)",marginBottom:6}}>CONNECT DATA SOURCE</div>
-            <div style={{color:"var(--text2)",fontSize:11,lineHeight:1.8}}>Your team's data is stored in Google Sheets. Complete setup once — everyone shares the same live tracker.</div>
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:24,background:"linear-gradient(135deg,#f0f4f8 0%,#e8f0fe 100%)"}}>
+      <div className="fade-in" style={{maxWidth:560,width:"100%"}}>
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <div style={{display:"inline-flex",alignItems:"center",gap:10,background:"#fff",padding:"10px 20px",borderRadius:40,boxShadow:"var(--shadow)",marginBottom:16,border:"1.5px solid var(--border)"}}>
+            <span style={{fontSize:18}}>🚀</span>
+            <span style={{fontWeight:800,fontSize:16,color:"var(--text)"}}>ENV PROMOTION TRACKER</span>
           </div>
-
+          <div style={{fontSize:13,color:"var(--text2)"}}>Connect to Google Sheets to get started</div>
+        </div>
+        <div className="card" style={{padding:32}}>
+          <div style={{fontWeight:700,fontSize:15,marginBottom:16}}>One-time Setup</div>
           {steps.map(({n,t,d})=>(
-            <div key={n} style={{display:"flex",gap:16,marginBottom:14,alignItems:"flex-start"}}>
-              <div style={{fontFamily:"var(--font-head)",fontSize:20,color:"var(--amber-dim)",flexShrink:0,lineHeight:1,marginTop:2,letterSpacing:"0.05em"}}>{n}</div>
-              <div style={{borderLeft:"1px solid var(--border)",paddingLeft:14}}>
-                <div style={{fontSize:12,fontWeight:600,color:"var(--text)",marginBottom:2,fontFamily:"var(--font-mono)"}}>{t}</div>
-                <div style={{fontSize:11,color:"var(--text2)",lineHeight:1.6,fontFamily:"var(--font-mono)"}}>{d}</div>
+            <div key={n} style={{display:"flex",gap:14,marginBottom:14,alignItems:"flex-start"}}>
+              <div style={{width:26,height:26,borderRadius:"50%",background:"var(--blue-light)",border:"2px solid var(--blue-mid)",color:"var(--blue)",fontWeight:700,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{n}</div>
+              <div style={{borderLeft:"1px solid #e2e8f0",paddingLeft:14}}>
+                <div style={{fontSize:13,fontWeight:600,marginBottom:2}}>{t}</div>
+                <div style={{fontSize:12,color:"var(--text2)",lineHeight:1.6,fontFamily:"var(--font-mono)"}}>{d}</div>
               </div>
             </div>
           ))}
-
-          <div style={{borderTop:"1px solid var(--border)",paddingTop:20,marginTop:8}}>
-            <SectionLabel style={{marginBottom:8}}>Apps Script Web App URL</SectionLabel>
-            <input className="inp" value={url} onChange={e=>setUrl(e.target.value)} onKeyDown={e=>e.key==="Enter"&&connect()} placeholder="https://script.google.com/macros/s/…/exec"/>
-            {err&&<div style={{color:"var(--red)",fontSize:11,fontFamily:"var(--font-mono)",marginTop:8}}>⚠ {err}</div>}
-            <button className="btn btn-amber" onClick={connect} disabled={busy} style={{marginTop:14,width:"100%",padding:"11px",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
-              {busy?<><Spinner/>TESTING CONNECTION…</>:"CONNECT & LAUNCH →"}
+          <div style={{borderTop:"1.5px solid var(--border)",paddingTop:20,marginTop:8}}>
+            <div className="sec-label">Apps Script Web App URL</div>
+            <input className="inp" value={url} onChange={e=>setUrl(e.target.value)} onKeyDown={e=>e.key==="Enter"&&connect()} placeholder="https://script.google.com/macros/s/…/exec" style={{marginBottom:err?8:14}}/>
+            {err&&<div style={{color:"var(--red)",fontSize:12,marginBottom:12}}>⚠ {err}</div>}
+            <button className="btn btn-blue" onClick={connect} disabled={busy} style={{width:"100%",justifyContent:"center",padding:"11px",fontSize:13}}>
+              {busy?<><Spinner/>Testing connection…</>:"Connect & Open Tracker →"}
             </button>
           </div>
         </div>
@@ -748,21 +714,19 @@ function SetupScreen({onConnect}){
   );
 }
 
-/* ════════════════════════════════════════════
-   MAIN APP
-════════════════════════════════════════════ */
+/* ════ MAIN APP ═════════════════════════════════════════════════ */
 function App(){
-  const [scriptUrl, setScriptUrl]  = useState(()=>localStorage.getItem(SCRIPT_URL_KEY)||"");
-  const [items,     setItems]      = useState([]);
-  const [loading,   setLoading]    = useState(false);
-  const [saving,    setSaving]     = useState(false);
-  const [error,     setError]      = useState("");
-  const [modal,     setModal]      = useState(null);
-  const [expanded,  setExpanded]   = useState(null);
-  const [delTarget, setDelTarget]  = useState(null);
-  const [filter,    setFilter]     = useState({type:"All",status:"All",track:"All",drop:"",search:""});
-  const [sort,      setSort]       = useState("createdAt");
-  const [lastSync,  setLastSync]   = useState(null);
+  const [scriptUrl,setScriptUrl] = useState(()=>localStorage.getItem(SCRIPT_URL_KEY)||"");
+  const [items,setItems]         = useState([]);
+  const [loading,setLoading]     = useState(false);
+  const [saving,setSaving]       = useState(false);
+  const [error,setError]         = useState("");
+  const [modal,setModal]         = useState(null);
+  const [expanded,setExpanded]   = useState(null);
+  const [delTarget,setDelTarget] = useState(null);
+  const [filter,setFilter]       = useState({type:"All",status:"All",track:"All",drop:"",search:""});
+  const [sort,setSort]           = useState("createdAt");
+  const [lastSync,setLastSync]   = useState(null);
 
   const fetchAll=useCallback(async(url=scriptUrl)=>{
     if(!url)return;
@@ -770,8 +734,8 @@ function App(){
     try{
       const r=await fetch(url+"?action=getAll");
       const j=await r.json();
-      if(!j.ok) throw new Error(j.error);
-      setItems((j.items||[]).map(i=>({...i,changes:i.changes||EMPTY_CHANGES()})));
+      if(!j.ok)throw new Error(j.error);
+      setItems((j.items||[]).map(i=>({...i,changes:i.changes||EMPTY_CHANGES(),microservices:i.microservices||[]})));
       setLastSync(new Date());
     }catch(e){setError("Load failed: "+e.message);}
     setLoading(false);
@@ -783,13 +747,12 @@ function App(){
     setSaving(true);setError("");
     try{
       await callApi(scriptUrl,"save",draft);
-      if(modal?.mode==="new") setItems(p=>[draft,...p]);
+      if(modal?.mode==="new")setItems(p=>[draft,...p]);
       else setItems(p=>p.map(i=>i.id===draft.id?draft:i));
       setModal(null);
     }catch(e){setError("Save failed: "+e.message);}
     setSaving(false);
   };
-
   const handleDelete=async id=>{
     setSaving(true);setError("");
     try{
@@ -799,20 +762,14 @@ function App(){
     }catch(e){setError("Delete failed: "+e.message);}
     setSaving(false);
   };
-
   const updateStatus=async(item,env,val)=>{
     const up={...item,statuses:{...item.statuses,[env]:val}};
     setItems(p=>p.map(i=>i.id===item.id?up:i));
     try{await callApi(scriptUrl,"save",up);}
-    catch(e){
-      setItems(p=>p.map(i=>i.id===item.id?item:i));
-      setError("Status update failed: "+e.message);
-    }
+    catch(e){setItems(p=>p.map(i=>i.id===item.id?item:i));setError("Status update failed: "+e.message);}
   };
 
   const allDrops=[...new Set(items.map(i=>i.dropNumber).filter(Boolean))].sort();
-  const pColor={Critical:"#ff4444",High:"#f0a500",Medium:"#4488ff",Low:"#3a506a"};
-
   const filtered=items.filter(i=>{
     const t=getTrack(i);
     if(filter.type !=="All"&&i.type!==filter.type)  return false;
@@ -821,118 +778,95 @@ function App(){
     if(filter.drop&&i.dropNumber!==filter.drop)      return false;
     if(filter.search){
       const q=filter.search.toLowerCase();
-      if(![i.ticket,i.title,i.owner,i.dropNumber].some(f=>f?.toLowerCase().includes(q))) return false;
+      if(![i.ticket,i.title,i.owner,i.dropNumber,i.versionLabel].some(f=>f?.toLowerCase().includes(q)))return false;
     }
     return true;
   }).sort((a,b)=>{
-    if(sort==="priority") return ["Critical","High","Medium","Low"].indexOf(a.priority)-["Critical","High","Medium","Low"].indexOf(b.priority);
-    if(sort==="type")     return a.type.localeCompare(b.type);
-    if(sort==="drop")     return (a.dropNumber||"").localeCompare(b.dropNumber||"");
+    if(sort==="priority")return["Critical","High","Medium","Low"].indexOf(a.priority)-["Critical","High","Medium","Low"].indexOf(b.priority);
+    if(sort==="type")return a.type.localeCompare(b.type);
+    if(sort==="drop")return(a.dropNumber||"").localeCompare(b.dropNumber||"");
     return b.createdAt.localeCompare(a.createdAt);
   });
-
   const stats={
-    total:      items.length,
-    inProgress: items.filter(i=>Object.values(i.statuses).includes("In Progress")).length,
-    blocked:    items.filter(i=>Object.values(i.statuses).includes("Blocked")).length,
-    inProd:     items.filter(i=>i.statuses.PROD==="Done").length,
+    total:items.length,
+    inProgress:items.filter(i=>Object.values(i.statuses).includes("In Progress")).length,
+    blocked:items.filter(i=>Object.values(i.statuses).includes("Blocked")).length,
+    inProd:items.filter(i=>i.statuses.PROD==="Done").length,
   };
 
-  if(!scriptUrl) return <SetupScreen onConnect={url=>{localStorage.setItem(SCRIPT_URL_KEY,url);setScriptUrl(url);}}/>;
+  if(!scriptUrl)return <SetupScreen onConnect={url=>{localStorage.setItem(SCRIPT_URL_KEY,url);setScriptUrl(url);}}/>;
 
   return (
-    <div style={{minHeight:"100vh",position:"relative",zIndex:1}}>
+    <div style={{minHeight:"100vh",background:"var(--bg)"}}>
 
-      {/* ── TOP HEADER BAR ── */}
-      <div style={{background:"var(--bg2)",borderBottom:"1px solid var(--border)",padding:"0 28px"}}>
-        <div style={{maxWidth:1440,margin:"0 auto",display:"flex",alignItems:"center",gap:0,height:56}}>
-          {/* Logo */}
-          <div style={{display:"flex",alignItems:"center",gap:14,paddingRight:28,borderRight:"1px solid var(--border)",marginRight:28}}>
-            <div style={{display:"flex",flexDirection:"column",gap:3}}>
-              <div style={{display:"flex",gap:3}}>
-                {["DEV","QA"].map(e=><div key={e} style={{width:6,height:6,borderRadius:1,background:ENV_META[e].color,boxShadow:`0 0 4px ${ENV_META[e].color}`}}/>)}
-              </div>
-              <div style={{display:"flex",gap:3}}>
-                {["DEV2","QA2","PROD"].map(e=><div key={e} style={{width:6,height:6,borderRadius:1,background:ENV_META[e].color,boxShadow:`0 0 4px ${ENV_META[e].color}`}}/>)}
-              </div>
-            </div>
+      {/* ── HEADER ── */}
+      <div style={{background:"#fff",borderBottom:"1.5px solid var(--border)",boxShadow:"0 1px 4px rgba(30,58,138,0.06)"}}>
+        <div style={{maxWidth:1480,margin:"0 auto",padding:"0 28px",display:"flex",alignItems:"center",height:60,gap:0}}>
+          {/* Brand */}
+          <div style={{display:"flex",alignItems:"center",gap:12,paddingRight:24,borderRight:"1.5px solid var(--border)",marginRight:24}}>
+            <div style={{width:32,height:32,borderRadius:8,background:"linear-gradient(135deg,#2563eb,#4f46e5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🚀</div>
             <div>
-              <div style={{fontFamily:"var(--font-head)",fontSize:18,letterSpacing:"0.14em",color:"var(--amber)",lineHeight:1}}>ENV TRACKER</div>
-              <div style={{fontSize:8,color:"var(--text3)",letterSpacing:"0.18em",textTransform:"uppercase",marginTop:1}}>Mission Operations</div>
+              <div style={{fontWeight:800,fontSize:15,color:"var(--text)",lineHeight:1}}>ENV Tracker</div>
+              <div style={{fontSize:10,color:"var(--text3)",fontFamily:"var(--font-mono)"}}>Promotion Control</div>
             </div>
           </div>
-
-          {/* Live indicator + sync */}
-          <div style={{display:"flex",alignItems:"center",gap:8,marginRight:"auto"}}>
+          {/* Live */}
+          <div style={{display:"flex",alignItems:"center",gap:7,marginRight:"auto"}}>
             <LiveDot/>
-            <span style={{fontSize:9,color:"var(--green)",fontFamily:"var(--font-mono)",fontWeight:700,letterSpacing:"0.1em"}}>LIVE</span>
-            {lastSync&&<span style={{fontSize:9,color:"var(--text3)",fontFamily:"var(--font-mono)"}}>· {lastSync.toLocaleTimeString()}</span>}
+            <span style={{fontSize:11,color:"var(--green)",fontWeight:600}}>Live</span>
+            {lastSync&&<span style={{fontSize:11,color:"var(--text3)",fontFamily:"var(--font-mono)"}}>· {lastSync.toLocaleTimeString()}</span>}
           </div>
-
           {/* Actions */}
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            <button className="btn btn-ghost" onClick={()=>fetchAll()} disabled={loading} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",fontSize:10}}>
-              {loading?<Spinner/>:"⟳"} SYNC
+            <button className="btn btn-ghost" onClick={()=>fetchAll()} disabled={loading} style={{fontSize:11,padding:"7px 12px"}}>
+              {loading?<Spinner/>:"↺"} Refresh
             </button>
-            <button className="btn" onClick={()=>exportToExcel(items)} style={{background:"rgba(0,230,118,0.08)",color:"var(--green)",border:"1px solid rgba(0,230,118,0.25)",display:"flex",alignItems:"center",gap:6,padding:"6px 14px",fontSize:10}}>
-              ⬇ EXPORT EXCEL
+            <button className="btn btn-green" onClick={()=>exportToExcel(items)} style={{fontSize:11,padding:"7px 14px"}}>
+              ⬇ Export Excel
             </button>
-            <button className="btn btn-amber" onClick={()=>setModal({mode:"new",item:EMPTY_ITEM()})} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",fontSize:10}}>
-              ⊕ NEW ACTIVITY
+            <button className="btn btn-blue" onClick={()=>setModal({mode:"new",item:EMPTY_ITEM()})} style={{fontSize:12,padding:"8px 16px"}}>
+              + New Activity
             </button>
-            <button className="btn btn-ghost" title="Reconnect" onClick={()=>{localStorage.removeItem(SCRIPT_URL_KEY);setScriptUrl("");}} style={{padding:"6px 10px",fontSize:13,lineHeight:1}}>⚙</button>
+            <button className="btn btn-ghost" title="Reconnect" onClick={()=>{localStorage.removeItem(SCRIPT_URL_KEY);setScriptUrl("");}} style={{fontSize:14,padding:"7px 10px"}}>⚙</button>
           </div>
         </div>
       </div>
 
-      {/* ── MAIN CONTENT ── */}
-      <div style={{maxWidth:1440,margin:"0 auto",padding:"24px 28px"}}>
+      <div style={{maxWidth:1480,margin:"0 auto",padding:"24px 28px"}}>
 
         {/* Error */}
         {error&&(
-          <div style={{background:"rgba(255,68,68,0.08)",border:"1px solid rgba(255,68,68,0.3)",borderRadius:3,padding:"10px 16px",marginBottom:20,color:"#ff8888",fontSize:11,fontFamily:"var(--font-mono)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{background:"#fef2f2",border:"1.5px solid #fecaca",borderRadius:10,padding:"10px 16px",marginBottom:20,color:"#dc2626",fontSize:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span>⚠ {error}</span>
-            <button onClick={()=>setError("")} style={{background:"none",border:"none",color:"var(--red)",cursor:"pointer",fontSize:16}}>✕</button>
+            <button onClick={()=>setError("")} style={{background:"none",border:"none",color:"#dc2626",cursor:"pointer",fontSize:16}}>✕</button>
           </div>
         )}
 
-        {/* ── STATS ROW ── */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:24}}>
-          {[
-            {label:"Total Activities",  value:stats.total,      cls:"gauge-amber", color:"var(--amber)"},
-            {label:"In Progress",       value:stats.inProgress, cls:"gauge-blue",  color:"var(--blue)"},
-            {label:"Blocked",           value:stats.blocked,    cls:"gauge-red",   color:"var(--red)"},
-            {label:"Deployed to PROD",  value:stats.inProd,     cls:"gauge-green", color:"var(--green)"},
-          ].map(({label,value,cls,color})=>(
-            <div key={label} className={`gauge ${cls}`}>
-              <div style={{fontSize:8,color:"var(--text3)",fontFamily:"var(--font-mono)",letterSpacing:"0.16em",textTransform:"uppercase",marginBottom:8}}>{label}</div>
-              <div style={{fontFamily:"var(--font-head)",fontSize:42,color,lineHeight:1,letterSpacing:"0.04em"}}>{String(value).padStart(2,"0")}</div>
-              <div style={{height:2,background:"var(--border)",borderRadius:1,marginTop:10,overflow:"hidden"}}>
-                <div style={{height:"100%",width:items.length?`${Math.round((value/items.length)*100)}%`:"0%",background:color,borderRadius:1,transition:"width 0.5s",boxShadow:`0 0 6px ${color}`}}/>
-              </div>
-            </div>
-          ))}
+        {/* ── STATS ── */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:24}}>
+          <StatCard label="Total Activities" value={stats.total}      total={stats.total} accent="#6366f1" icon="📋"/>
+          <StatCard label="In Progress"      value={stats.inProgress} total={stats.total} accent="#2563eb" icon="▶️"/>
+          <StatCard label="Blocked"          value={stats.blocked}    total={stats.total} accent="#dc2626" icon="🚫"/>
+          <StatCard label="Live in PROD"     value={stats.inProd}     total={stats.total} accent="#059669" icon="✅"/>
         </div>
 
-        {/* ── ENV PIPELINE OVERVIEW ── */}
-        <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:4,padding:"16px 20px",marginBottom:24}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-            <div style={{width:20,height:1,background:"var(--amber-dim)"}}/>
-            <span style={{fontSize:9,color:"var(--amber-dim)",fontFamily:"var(--font-mono)",fontWeight:700,letterSpacing:"0.16em"}}>PIPELINE STATUS</span>
-            <div style={{flex:1,height:1,background:"var(--border)"}}/>
-            {/* Track badges */}
-            <div style={{display:"flex",gap:12}}>
+        {/* ── PIPELINE OVERVIEW ── */}
+        <div className="card" style={{padding:"16px 20px",marginBottom:24}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+            <div style={{fontWeight:700,fontSize:13,color:"var(--text)"}}>Pipeline Overview</div>
+            <div style={{flex:1,height:1,background:"var(--border)",marginLeft:8}}/>
+            <div style={{display:"flex",gap:14}}>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <div style={{width:8,height:8,background:"var(--blue)",borderRadius:1}}/>
-                <span style={{fontSize:9,color:"var(--text3)",fontFamily:"var(--font-mono)"}}>FEATURE: DEV→QA→PROD</span>
+                <div style={{width:10,height:10,borderRadius:2,background:"#2563eb"}}/>
+                <span style={{fontSize:10,color:"var(--text2)",fontFamily:"var(--font-mono)"}}>FEATURE: DEV→QA→PROD</span>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <div style={{width:8,height:8,background:"var(--amber)",borderRadius:1}}/>
-                <span style={{fontSize:9,color:"var(--text3)",fontFamily:"var(--font-mono)"}}>HOTFIX: DEV2→QA2→PROD↺DEV→QA</span>
+                <div style={{width:10,height:10,borderRadius:2,background:"#d97706"}}/>
+                <span style={{fontSize:10,color:"var(--text2)",fontFamily:"var(--font-mono)"}}>HOTFIX: DEV2→QA2→PROD↺DEV→QA</span>
               </div>
             </div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
             {ENVS.map(env=>{
               const em=ENV_META[env];
               const rel=items.filter(i=>{const t=getTrack(i);if(env==="PROD")return true;if(t==="hotfix")return true;return["DEV","QA"].includes(env);});
@@ -941,22 +875,22 @@ function App(){
               const blkd  =rel.filter(i=>i.statuses[env]==="Blocked").length;
               const pct   =rel.length?Math.round((done/rel.length)*100):0;
               return (
-                <div key={env} style={{background:"var(--bg3)",border:`1px solid ${em.color}22`,borderRadius:3,padding:"12px 14px"}}>
+                <div key={env} style={{background:em.bg,border:`1.5px solid ${em.border}`,borderRadius:10,padding:"14px 16px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                     <div>
-                      <div style={{color:em.color,fontFamily:"var(--font-mono)",fontWeight:800,fontSize:13,letterSpacing:"0.08em"}}>{em.label}</div>
-                      <div style={{color:"var(--text3)",fontSize:8,fontFamily:"var(--font-mono)",marginTop:1,letterSpacing:"0.06em"}}>{em.sub.toUpperCase()}</div>
+                      <div style={{color:em.color,fontFamily:"var(--font-mono)",fontWeight:700,fontSize:13}}>{em.label}</div>
+                      <div style={{color:"var(--text3)",fontSize:9,fontFamily:"var(--font-mono)",marginTop:1}}>{em.sub}</div>
                     </div>
-                    <div style={{fontFamily:"var(--font-head)",fontSize:22,color:em.color,lineHeight:1}}>{pct}<span style={{fontSize:12}}>%</span></div>
+                    <div style={{fontSize:20,fontWeight:800,color:em.color,fontFamily:"var(--font-mono)",lineHeight:1}}>{pct}%</div>
                   </div>
-                  <div style={{height:3,background:"var(--border)",borderRadius:1,overflow:"hidden",marginBottom:8}}>
-                    <div style={{height:"100%",width:`${pct}%`,background:em.color,borderRadius:1,transition:"width 0.5s",boxShadow:`0 0 4px ${em.color}88`}}/>
+                  <div style={{height:4,background:"rgba(255,255,255,0.6)",borderRadius:2,overflow:"hidden",marginBottom:8}}>
+                    <div style={{height:"100%",width:`${pct}%`,background:em.color,borderRadius:2,transition:"width 0.5s"}}/>
                   </div>
-                  <div style={{display:"flex",gap:10,fontSize:9,fontFamily:"var(--font-mono)"}}>
-                    <span style={{color:"var(--green)"}}>{done}✓</span>
-                    {active>0&&<span style={{color:"var(--blue)"}}>{active}▶</span>}
-                    {blkd>0&&<span style={{color:"var(--red)"}}>{blkd}✕</span>}
-                    <span style={{color:"var(--text3)",marginLeft:"auto"}}>{rel.length} total</span>
+                  <div style={{display:"flex",gap:10,fontSize:10,fontFamily:"var(--font-mono)"}}>
+                    <span style={{color:"#059669",fontWeight:600}}>{done}✓</span>
+                    {active>0&&<span style={{color:"#2563eb",fontWeight:600}}>{active}▶</span>}
+                    {blkd>0&&<span style={{color:"#dc2626",fontWeight:600}}>{blkd}✕</span>}
+                    <span style={{color:"var(--text3)",marginLeft:"auto"}}>{rel.length}</span>
                   </div>
                 </div>
               );
@@ -966,188 +900,202 @@ function App(){
 
         {/* ── FILTER BAR ── */}
         <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
-          <div style={{position:"relative",flex:1,minWidth:220}}>
-            <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:"var(--text3)",fontSize:11,pointerEvents:"none"}}>⌕</span>
-            <input className="inp" value={filter.search} onChange={e=>setFilter(f=>({...f,search:e.target.value}))} placeholder="Search ticket, title, owner, drop…" style={{paddingLeft:32}}/>
+          <div style={{position:"relative",flex:1,minWidth:200}}>
+            <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:"var(--text3)",fontSize:13}}>🔍</span>
+            <input className="inp" value={filter.search} onChange={e=>setFilter(f=>({...f,search:e.target.value}))} placeholder="Search ticket, title, owner, drop, version…" style={{paddingLeft:36}}/>
           </div>
-          <select className="inp" value={filter.drop} onChange={e=>setFilter(f=>({...f,drop:e.target.value}))} style={{width:"auto",fontSize:11}}>
+          <select className="inp" value={filter.drop} onChange={e=>setFilter(f=>({...f,drop:e.target.value}))} style={{width:"auto"}}>
             <option value="">All Drops</option>
             {allDrops.map(d=><option key={d} value={d}>{d}</option>)}
           </select>
           {[
-            {key:"type",  opts:["All",...TYPE_OPTIONS]},
-            {key:"track", opts:["All","feature","hotfix"]},
-            {key:"status",opts:["All",...STATUS_OPTIONS]},
-          ].map(({key,opts})=>(
-            <select key={key} className="inp" value={filter[key]} onChange={e=>setFilter(f=>({...f,[key]:e.target.value}))} style={{width:"auto",fontSize:11}}>
-              {opts.map(o=><option key={o}>{o==="All"?`All ${key.charAt(0).toUpperCase()+key.slice(1)}s`:o}</option>)}
+            {key:"type",  opts:["All",...TYPE_OPTIONS],   prefix:"Type"},
+            {key:"track", opts:["All","feature","hotfix"],prefix:"Track"},
+            {key:"status",opts:["All",...STATUS_OPTIONS], prefix:"Status"},
+          ].map(({key,opts,prefix})=>(
+            <select key={key} className="inp" value={filter[key]} onChange={e=>setFilter(f=>({...f,[key]:e.target.value}))} style={{width:"auto"}}>
+              {opts.map(o=><option key={o} value={o}>{o==="All"?`All ${prefix}s`:o}</option>)}
             </select>
           ))}
-          <select className="inp" value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto",fontSize:11}}>
-            <option value="createdAt">↕ Date</option>
-            <option value="drop">↕ Drop</option>
-            <option value="priority">↕ Priority</option>
-            <option value="type">↕ Type</option>
+          <select className="inp" value={sort} onChange={e=>setSort(e.target.value)} style={{width:"auto"}}>
+            <option value="createdAt">Sort: Date</option>
+            <option value="drop">Sort: Drop</option>
+            <option value="priority">Sort: Priority</option>
+            <option value="type">Sort: Type</option>
           </select>
-          {/* Export filtered */}
-          <button className="btn" onClick={()=>exportToExcel(filtered)} style={{background:"rgba(0,230,118,0.06)",color:"var(--green)",border:"1px solid rgba(0,230,118,0.2)",fontSize:10,padding:"7px 12px",whiteSpace:"nowrap"}}>
-            ⬇ EXPORT FILTERED ({filtered.length})
+          <button className="btn btn-green" onClick={()=>exportToExcel(filtered,"filtered")} style={{fontSize:11,padding:"7px 12px",whiteSpace:"nowrap"}}>
+            ⬇ Export ({filtered.length})
           </button>
         </div>
 
-        {/* ── ACTIVITIES TABLE ── */}
-        <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:4,overflow:"hidden"}}>
-
+        {/* ── TABLE ── */}
+        <div className="card" style={{overflow:"hidden",marginBottom:12}}>
           {/* Table header */}
           <div style={{
-            display:"grid",gridTemplateColumns:"86px 96px minmax(180px,1fr) 86px 76px 74px 1fr",
-            padding:"9px 18px",borderBottom:"1px solid var(--border)",
-            background:"var(--bg)",gap:10,
+            display:"grid",
+            gridTemplateColumns:"88px 96px 110px minmax(160px,1fr) 88px 80px 72px 1fr",
+            padding:"10px 20px",borderBottom:"1.5px solid var(--border)",
+            background:"#f8fafc",gap:10,
           }}>
-            {["DROP","TICKET","TITLE / OWNER","TYPE","PRIORITY","TRACK","PROMOTION PATH"].map(h=>(
-              <div key={h} style={{fontSize:8,color:"var(--text3)",fontFamily:"var(--font-mono)",fontWeight:700,letterSpacing:"0.14em"}}>{h}</div>
+            {["DROP","TICKET","VERSION","TITLE / OWNER","TYPE","PRIORITY","TRACK","PROMOTION PATH"].map(h=>(
+              <div key={h} style={{fontSize:9,fontWeight:700,letterSpacing:"0.1em",color:"var(--text3)",fontFamily:"var(--font-mono)"}}>{h}</div>
             ))}
           </div>
 
-          {/* Loading */}
           {loading&&items.length===0&&(
-            <div style={{padding:56,display:"flex",alignItems:"center",justifyContent:"center",gap:14,color:"var(--text3)",fontFamily:"var(--font-mono)",fontSize:12}}>
-              <Spinner size={18}/> LOADING FROM GOOGLE SHEETS…
+            <div style={{padding:56,display:"flex",alignItems:"center",justifyContent:"center",gap:12,color:"var(--text3)",fontSize:13}}>
+              <Spinner size={18}/> Loading from Google Sheets…
             </div>
           )}
-
-          {/* Empty */}
           {!loading&&filtered.length===0&&(
             <div style={{padding:64,textAlign:"center"}}>
-              <div style={{fontFamily:"var(--font-head)",fontSize:28,color:"var(--text3)",letterSpacing:"0.1em",marginBottom:8}}>NO RECORDS FOUND</div>
-              <div style={{fontSize:11,color:"var(--text3)",fontFamily:"var(--font-mono)"}}>{items.length===0?"Click ⊕ NEW ACTIVITY to get started":"No results match your current filters"}</div>
+              <div style={{fontSize:36,marginBottom:12}}>📭</div>
+              <div style={{fontSize:15,fontWeight:700,color:"var(--text)",marginBottom:6}}>{items.length===0?"No activities yet":"No results found"}</div>
+              <div style={{fontSize:12,color:"var(--text3)"}}>{items.length===0?'Click "+ New Activity" to get started':"Try adjusting your filters"}</div>
             </div>
           )}
 
-          {/* Rows */}
           {filtered.map((item,idx)=>{
-            const track     = getTrack(item);
-            const isExp     = expanded===item.id;
-            const trackColor= track==="feature"?"var(--blue)":"var(--amber)";
-            const envEnabled= env=>track==="hotfix"?true:(env==="PROD"||["DEV","QA"].includes(env));
-            const typeColor = TYPE_CFG[item.type]?.color||"var(--text)";
-            const c         = item.changes||{};
-            const hasChanges= c.hasConfig||c.hasCodeChange||c.hasSql;
+            const track     =getTrack(item);
+            const isExp     =expanded===item.id;
+            const typeStyle =TYPE_CFG[item.type]||TYPE_CFG.Feature;
+            const priStyle  =PRIORITY_CFG[item.priority]||PRIORITY_CFG.Medium;
+            const trackColor=track==="feature"?"#2563eb":"#d97706";
+            const c         =item.changes||{};
+            const svcCount  =(item.microservices||[]).filter(s=>s.name).length;
+            const envEnabled=env=>track==="hotfix"?true:(env==="PROD"||["DEV","QA"].includes(env));
 
             return (
-              <div key={item.id} className="activity-row" style={{borderBottom:idx<filtered.length-1?"1px solid var(--border)":"none"}}>
-                {/* Track indicator stripe */}
-                <div className="row-indicator" style={{background:trackColor}}/>
-
-                {/* Main row */}
+              <div key={item.id} className="act-row" style={{borderBottom:idx<filtered.length-1?"1.5px solid var(--border)":"none",background:isExp?"#f8faff":"transparent"}}>
+                {/* Row */}
                 <div
                   onClick={()=>setExpanded(isExp?null:item.id)}
                   style={{
-                    display:"grid",gridTemplateColumns:"86px 96px minmax(180px,1fr) 86px 76px 74px 1fr",
-                    padding:"11px 18px",alignItems:"center",gap:10,
-                    background:isExp?"rgba(240,165,0,0.02)":"transparent",
+                    display:"grid",
+                    gridTemplateColumns:"88px 96px 110px minmax(160px,1fr) 88px 80px 72px 1fr",
+                    padding:"12px 20px",alignItems:"center",gap:10,
                   }}
                 >
                   {/* Drop */}
-                  <div style={{color:"var(--amber)",fontFamily:"var(--font-mono)",fontSize:10,fontWeight:700,letterSpacing:"0.04em"}}>
-                    {item.dropNumber||<span style={{color:"var(--text3)"}}>—</span>}
+                  <div style={{fontFamily:"var(--font-mono)",fontSize:11,fontWeight:700,color:"#d97706"}}>
+                    {item.dropNumber||<span style={{color:"var(--text4)"}}>—</span>}
                   </div>
                   {/* Ticket */}
-                  <div style={{color:"var(--text2)",fontFamily:"var(--font-mono)",fontSize:10}}>{item.ticket||"—"}</div>
-                  {/* Title */}
+                  <div style={{fontFamily:"var(--font-mono)",fontSize:11,color:"var(--text2)"}}>
+                    {item.ticket||<span style={{color:"var(--text4)"}}>—</span>}
+                  </div>
+                  {/* Version */}
                   <div>
-                    <div style={{fontFamily:"var(--font-body)",fontWeight:500,fontSize:13,color:"var(--text)",marginBottom:2,lineHeight:1.3}}>
-                      {item.title||<em style={{color:"var(--text3)",fontStyle:"italic"}}>Untitled</em>}
+                    {item.versionLabel
+                      ? <Chip color="blue">{item.versionLabel}</Chip>
+                      : <span style={{color:"var(--text4)",fontSize:11}}>—</span>}
+                  </div>
+                  {/* Title/Owner */}
+                  <div>
+                    <div style={{fontWeight:600,fontSize:13,color:"var(--text)",marginBottom:2,lineHeight:1.3}}>
+                      {item.title||<em style={{color:"var(--text3)",fontStyle:"normal"}}>Untitled</em>}
                     </div>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      {item.owner&&<span style={{color:"var(--text3)",fontSize:9,fontFamily:"var(--font-mono)"}}>@{item.owner}</span>}
-                      {hasChanges&&(
-                        <div style={{display:"flex",gap:4}}>
-                          {c.hasConfig&&     <span style={{fontSize:8,color:"var(--purple)",fontFamily:"var(--font-mono)",background:"rgba(170,102,255,0.1)",padding:"1px 5px",borderRadius:1,border:"1px solid rgba(170,102,255,0.2)"}}>CFG</span>}
-                          {c.hasCodeChange&& <span style={{fontSize:8,color:"var(--blue)",  fontFamily:"var(--font-mono)",background:"rgba(68,136,255,0.1)", padding:"1px 5px",borderRadius:1,border:"1px solid rgba(68,136,255,0.2)"}}>CODE</span>}
-                          {c.hasSql&&        <span style={{fontSize:8,color:"var(--green)", fontFamily:"var(--font-mono)",background:"rgba(0,230,118,0.1)", padding:"1px 5px",borderRadius:1,border:"1px solid rgba(0,230,118,0.2)"}}>SQL</span>}
-                        </div>
-                      )}
+                    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                      {item.owner&&<span style={{fontSize:11,color:"var(--text3)",fontFamily:"var(--font-mono)"}}>@{item.owner}</span>}
+                      {c.hasConfig&&    <span className="change-tag" style={{background:"#f5f3ff",color:"#7c3aed",borderColor:"#ddd6fe"}}>CFG</span>}
+                      {c.hasCodeChange&&<span className="change-tag" style={{background:"#eff6ff",color:"#2563eb",borderColor:"#bfdbfe"}}>CODE</span>}
+                      {c.hasSql&&       <span className="change-tag" style={{background:"#ecfdf5",color:"#059669",borderColor:"#a7f3d0"}}>SQL</span>}
+                      {svcCount>0&&     <span className="change-tag" style={{background:"#ecfeff",color:"#0891b2",borderColor:"#a5f3fc"}}>{svcCount} svc{svcCount>1?"s":""}</span>}
                     </div>
                   </div>
                   {/* Type */}
-                  <div style={{color:typeColor,fontFamily:"var(--font-mono)",fontSize:10,fontWeight:700,letterSpacing:"0.04em",background:typeColor+"11",border:`1px solid ${typeColor}33`,borderRadius:2,padding:"3px 8px",textAlign:"center"}}>
-                    {item.type}
+                  <div>
+                    <span style={{display:"inline-block",padding:"3px 9px",borderRadius:6,fontSize:11,fontWeight:600,background:typeStyle.bg,color:typeStyle.text,border:`1px solid ${typeStyle.border}`,fontFamily:"var(--font-mono)"}}>
+                      {item.type}
+                    </span>
                   </div>
                   {/* Priority */}
-                  <div style={{color:pColor[item.priority]||"var(--text2)",fontFamily:"var(--font-mono)",fontSize:10,fontWeight:700,letterSpacing:"0.04em"}}>
-                    {item.priority}
+                  <div>
+                    <span style={{display:"inline-block",padding:"3px 9px",borderRadius:6,fontSize:11,fontWeight:600,background:priStyle.bg,color:priStyle.text,border:`1px solid ${priStyle.border}`,fontFamily:"var(--font-mono)"}}>
+                      {item.priority}
+                    </span>
                   </div>
                   {/* Track */}
-                  <div style={{color:trackColor,fontFamily:"var(--font-mono)",fontSize:9,fontWeight:700,letterSpacing:"0.04em",background:trackColor+"11",border:`1px solid ${trackColor}33`,borderRadius:2,padding:"3px 6px",textAlign:"center"}}>
-                    {track==="feature"?"FEAT":"HF/CFG"}
+                  <div>
+                    <span style={{display:"inline-block",padding:"3px 8px",borderRadius:6,fontSize:10,fontWeight:700,fontFamily:"var(--font-mono)",background:track==="feature"?"#eff6ff":"#fffbeb",color:trackColor,border:`1px solid ${track==="feature"?"#bfdbfe":"#fde68a"}`}}>
+                      {track==="feature"?"FEAT":"HF/CFG"}
+                    </span>
                   </div>
                   {/* Promo path */}
-                  <CircuitBar item={item}/>
+                  <PromoBar item={item}/>
                 </div>
 
-                {/* Expanded section */}
+                {/* Expanded */}
                 {isExp&&(
-                  <div className="scan-in" style={{borderTop:"1px solid var(--border)",background:"rgba(0,0,0,0.3)",padding:"16px 18px 14px"}}>
-
-                    {/* ENV status grid */}
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:14}}>
+                  <div className="fade-in" style={{borderTop:"1.5px solid var(--border)",padding:"16px 20px 14px",background:"#f8faff"}}>
+                    {/* Env grid */}
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:16}}>
                       {ENVS.map(env=>{
-                        const em=ENV_META[env];
-                        const en=envEnabled(env);
+                        const em=ENV_META[env],en=envEnabled(env);
                         return (
-                          <div key={env} style={{background:en?em.dim+"66":"var(--bg2)",border:`1px solid ${en?em.color+"33":"var(--border)"}`,borderRadius:3,padding:"10px 10px",opacity:en?1:0.25}}>
-                            <div style={{color:em.color,fontFamily:"var(--font-mono)",fontWeight:800,fontSize:10,marginBottom:2,letterSpacing:"0.06em"}}>{em.label}</div>
-                            <div style={{color:"var(--text3)",fontSize:8,fontFamily:"var(--font-mono)",marginBottom:8}}>{em.sub}</div>
+                          <div key={env} style={{background:en?em.bg:"#fafbfc",border:`1.5px solid ${en?em.border:"#e2e8f0"}`,borderRadius:10,padding:"12px 12px",opacity:en?1:0.3}}>
+                            <div style={{color:em.color,fontFamily:"var(--font-mono)",fontWeight:700,fontSize:11,marginBottom:1}}>{em.label}</div>
+                            <div style={{color:"var(--text3)",fontSize:9,fontFamily:"var(--font-mono)",marginBottom:8}}>{em.sub}</div>
                             <StatusSelect value={item.statuses[env]} onChange={val=>updateStatus(item,env,val)} disabled={!en}/>
                           </div>
                         );
                       })}
                     </div>
 
+                    {/* Services */}
+                    {(item.microservices||[]).filter(s=>s.name).length>0&&(
+                      <div style={{marginBottom:12,padding:"10px 14px",background:"#ecfeff",border:"1px solid #a5f3fc",borderRadius:8}}>
+                        <div style={{fontSize:10,fontWeight:700,color:"#0891b2",fontFamily:"var(--font-mono)",marginBottom:8,letterSpacing:"0.06em"}}>▸ MICROSERVICES</div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                          {(item.microservices||[]).filter(s=>s.name).map(s=>(
+                            <span key={s.id} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"4px 12px",background:"#fff",border:"1px solid #a5f3fc",borderRadius:20,fontSize:11,fontFamily:"var(--font-mono)"}}>
+                              <span style={{fontWeight:600,color:"var(--text2)"}}>{s.name}</span>
+                              {s.version&&<><span style={{color:"#cbd5e1"}}>@</span><span style={{fontWeight:700,color:"#0891b2"}}>{s.version}</span></>}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Change detail cards */}
-                    {hasChanges&&(
+                    {(c.hasConfig||c.hasCodeChange||c.hasSql)&&(
                       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8,marginBottom:12}}>
                         {c.hasConfig&&c.configDetails&&(
-                          <div style={{background:"rgba(170,102,255,0.05)",border:"1px solid rgba(170,102,255,0.2)",borderRadius:3,padding:"10px 12px"}}>
-                            <div style={{color:"var(--purple)",fontSize:8,fontFamily:"var(--font-mono)",fontWeight:700,letterSpacing:"0.1em",marginBottom:6}}>▸ CONFIG CHANGES</div>
-                            <div style={{color:"var(--text2)",fontSize:11,whiteSpace:"pre-wrap",lineHeight:1.6,fontFamily:"var(--font-mono)"}}>{c.configDetails}</div>
+                          <div style={{background:"#f5f3ff",border:"1px solid #ddd6fe",borderRadius:8,padding:"10px 14px"}}>
+                            <div style={{color:"#7c3aed",fontSize:9,fontWeight:700,fontFamily:"var(--font-mono)",marginBottom:6,letterSpacing:"0.08em"}}>▸ CONFIG CHANGES</div>
+                            <div style={{color:"var(--text2)",fontSize:11,whiteSpace:"pre-wrap",lineHeight:1.7,fontFamily:"var(--font-mono)"}}>{c.configDetails}</div>
                           </div>
                         )}
                         {c.hasCodeChange&&c.codeDetails&&(
-                          <div style={{background:"rgba(68,136,255,0.05)",border:"1px solid rgba(68,136,255,0.2)",borderRadius:3,padding:"10px 12px"}}>
-                            <div style={{color:"var(--blue)",fontSize:8,fontFamily:"var(--font-mono)",fontWeight:700,letterSpacing:"0.1em",marginBottom:6}}>▸ CODE CHANGE</div>
-                            <div style={{color:"var(--text2)",fontSize:11,whiteSpace:"pre-wrap",lineHeight:1.6,fontFamily:"var(--font-mono)"}}>{c.codeDetails}</div>
+                          <div style={{background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:8,padding:"10px 14px"}}>
+                            <div style={{color:"#2563eb",fontSize:9,fontWeight:700,fontFamily:"var(--font-mono)",marginBottom:6,letterSpacing:"0.08em"}}>▸ CODE CHANGE</div>
+                            <div style={{color:"var(--text2)",fontSize:11,whiteSpace:"pre-wrap",lineHeight:1.7,fontFamily:"var(--font-mono)"}}>{c.codeDetails}</div>
                           </div>
                         )}
                         {c.hasSql&&(
-                          <div style={{background:"rgba(0,230,118,0.04)",border:"1px solid rgba(0,230,118,0.18)",borderRadius:3,padding:"10px 12px"}}>
-                            <div style={{color:"var(--green)",fontSize:8,fontFamily:"var(--font-mono)",fontWeight:700,letterSpacing:"0.1em",marginBottom:6}}>▸ SQL / DB CHANGES</div>
+                          <div style={{background:"#ecfdf5",border:"1px solid #a7f3d0",borderRadius:8,padding:"10px 14px"}}>
+                            <div style={{color:"#059669",fontSize:9,fontWeight:700,fontFamily:"var(--font-mono)",marginBottom:6,letterSpacing:"0.08em"}}>▸ SQL / DB CHANGES</div>
                             {(c.sqlTypes||[]).length>0&&(
-                              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>
-                                {(c.sqlTypes||[]).map(k=>{
-                                  const t=SQL_TYPES.find(x=>x.key===k);
-                                  return t?<span key={k} style={{fontSize:8,color:t.color,fontFamily:"var(--font-mono)",fontWeight:700,background:t.color+"11",padding:"2px 7px",borderRadius:1,border:`1px solid ${t.color}33`,letterSpacing:"0.05em"}}>{t.label}</span>:null;
-                                })}
+                              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
+                                {(c.sqlTypes||[]).map(k=>{const t=SQL_TYPES.find(x=>x.key===k);return t?<span key={k} style={{fontSize:9,fontWeight:700,fontFamily:"var(--font-mono)",background:t.bg,color:t.color,border:`1px solid ${t.border}`,padding:"2px 7px",borderRadius:3}}>{t.label}</span>:null;})}
                               </div>
                             )}
-                            {c.sqlDetails&&<div style={{color:"var(--text2)",fontSize:11,whiteSpace:"pre-wrap",lineHeight:1.6,fontFamily:"var(--font-mono)"}}>{c.sqlDetails}</div>}
+                            {c.sqlDetails&&<div style={{color:"var(--text2)",fontSize:11,whiteSpace:"pre-wrap",lineHeight:1.7,fontFamily:"var(--font-mono)"}}>{c.sqlDetails}</div>}
                           </div>
                         )}
                       </div>
                     )}
 
-                    {/* Notes */}
                     {item.notes&&(
-                      <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid var(--border)",borderRadius:3,padding:"8px 12px",marginBottom:12}}>
-                        <span style={{color:"var(--text3)",fontSize:8,fontFamily:"var(--font-mono)",fontWeight:700,letterSpacing:"0.1em"}}>▸ NOTES  </span>
-                        <span style={{color:"var(--text2)",fontSize:11,fontFamily:"var(--font-mono)"}}>{item.notes}</span>
+                      <div style={{background:"#fff",border:"1px solid var(--border)",borderRadius:8,padding:"8px 14px",marginBottom:12}}>
+                        <span style={{color:"var(--text3)",fontSize:9,fontWeight:700,fontFamily:"var(--font-mono)",letterSpacing:"0.08em"}}>▸ NOTES  </span>
+                        <span style={{color:"var(--text2)",fontSize:12}}>{item.notes}</span>
                       </div>
                     )}
 
                     <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-                      <button className="btn btn-ghost" onClick={()=>setModal({mode:"edit",item})} style={{fontSize:10,padding:"5px 12px"}}>✎ EDIT</button>
-                      <button className="btn btn-red"   onClick={()=>setDelTarget(item)} style={{fontSize:10,padding:"5px 12px"}}>⊗ DELETE</button>
+                      <button className="btn btn-ghost" onClick={()=>setModal({mode:"edit",item})} style={{fontSize:11,padding:"6px 14px"}}>✎ Edit</button>
+                      <button className="btn btn-red"   onClick={()=>setDelTarget(item)} style={{fontSize:11,padding:"6px 14px"}}>🗑 Delete</button>
                     </div>
                   </div>
                 )}
@@ -1157,27 +1105,22 @@ function App(){
         </div>
 
         {/* Footer */}
-        <div style={{marginTop:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{fontSize:9,color:"var(--text3)",fontFamily:"var(--font-mono)",letterSpacing:"0.1em"}}>
-            {filtered.length} OF {items.length} RECORDS · CLICK ROW TO EXPAND
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:11,color:"var(--text3)",fontFamily:"var(--font-mono)"}}>
+            {filtered.length} of {items.length} records · Click any row to expand
           </div>
-          <div style={{fontSize:9,color:"var(--text3)",fontFamily:"var(--font-mono)",letterSpacing:"0.1em"}}>
-            ENV TRACKER · BACKED BY GOOGLE SHEETS
+          <div style={{fontSize:11,color:"var(--text3)",fontFamily:"var(--font-mono)"}}>
+            Backed by Google Sheets · ENV Tracker
           </div>
         </div>
       </div>
 
-      {/* Modals */}
-      {modal&&(
-        <ItemModal item={modal.item} onSave={handleSave} onClose={()=>setModal(null)} onDelete={modal.mode==="edit"?handleDelete:null} saving={saving}/>
-      )}
-      {delTarget&&(
-        <ConfirmDelete
-          title={delTarget.ticket?`${delTarget.dropNumber||""} · ${delTarget.ticket} — ${delTarget.title}`:delTarget.title}
-          onConfirm={()=>handleDelete(delTarget.id)}
-          onCancel={()=>setDelTarget(null)}
-        />
-      )}
+      {modal&&<ItemModal item={modal.item} onSave={handleSave} onClose={()=>setModal(null)} onDelete={modal.mode==="edit"?handleDelete:null} saving={saving}/>}
+      {delTarget&&<ConfirmDelete
+        title={delTarget.ticket?`${delTarget.dropNumber||""} · ${delTarget.ticket} — ${delTarget.title}`:delTarget.title}
+        onConfirm={()=>handleDelete(delTarget.id)}
+        onCancel={()=>setDelTarget(null)}
+      />}
     </div>
   );
 }
